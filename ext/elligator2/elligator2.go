@@ -35,11 +35,18 @@
 package elligator2
 
 import (
+	"errors"
 	"io"
 
 	"github.com/agl/ed25519/edwards25519"
 	"golang.org/x/crypto/sha3"
 )
+
+const maxKeygenAttempts = 128
+
+// ErrKeygenFailed is the error returned when a suitable base keypair was not
+// generated after the maximum number of retries.
+var ErrKeygenFailed = errors.New("elligator2: failed to generate key pair")
 
 // sqrtMinusA is sqrt(-486662)
 var sqrtMinusA = edwards25519.FieldElement{
@@ -97,7 +104,7 @@ func GenerateKey(random io.Reader, publicKey, representative, privateKey *[32]by
 	h.Write(privateKey[:])
 	defer h.Reset()
 
-	for {
+	for i := 0; i < maxKeygenAttempts; i++ {
 		// Squeeze out a candidate private key from the SHAKE construct.
 		if _, err := io.ReadFull(h, privateKey[:]); err != nil {
 			return err
@@ -105,20 +112,23 @@ func GenerateKey(random io.Reader, publicKey, representative, privateKey *[32]by
 
 		// Attempt to generate a private key and uniform representative.
 		if ok := scalarBaseMult(publicKey, representative, privateKey); ok {
-			break
+			// Randomize the 2 high bits of the representative.  This uses the
+			// system entropy source since `h` should only be used for private
+			// values that never appear on the wire.
+			var bits [1]byte
+			if _, err := io.ReadFull(random, bits[:]); err != nil {
+				return err
+			}
+			representative[31] |= bits[0] & 0xc0
+
+			return nil
 		}
 	}
 
-	// Randomize the 2 high bits of the representative.  This uses the system
-	// entropy source since `h` should only be used for private values that
-	// never appear on the wire.
-	var bits [1]byte
-	if _, err := io.ReadFull(random, bits[:]); err != nil {
-		return err
-	}
-	representative[31] |= bits[0] & 0xc0
-
-	return nil
+	// Something has gone catastrophically wrong, and there was a total
+	// failure to generate a suitable base keypair.  The probability of
+	// this happening is 1/2^maxKeygentAttempts.
+	return ErrKeygenFailed
 }
 
 // scalarBaseMult computes a curve25519 public key from a private key and also
