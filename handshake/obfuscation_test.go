@@ -20,12 +20,11 @@ import (
 	"bytes"
 	"crypto/rand"
 	"fmt"
-	"io"
 	"net"
 	"sync"
 	"testing"
 
-	"golang.org/x/crypto/curve25519"
+	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
 )
 
 var (
@@ -35,11 +34,10 @@ var (
 
 func TestObfuscationSmoke(t *testing.T) {
 	// Generate Bob's long term identity keypair.
-	var bobKeys serverObfsKeypair
-	if _, err := io.ReadFull(rand.Reader, bobKeys.privateKey[:]); err != nil {
+	bobKeys, err := identity.NewPrivateKey(rand.Reader)
+	if err != nil {
 		t.Fatalf("failed to generate bobSk: %v", err)
 	}
-	curve25519.ScalarBaseMult(&bobKeys.publicKey, &bobKeys.privateKey)
 
 	// Launch Alice and Bob's portions in their own go routines.
 	var wg sync.WaitGroup
@@ -50,7 +48,7 @@ func TestObfuscationSmoke(t *testing.T) {
 	defer bobPipe.Close()
 	aliceTestFn := func() {
 		defer wg.Done()
-		if err := aliceSmokeTestFn(alicePipe, &bobKeys.publicKey); err != nil {
+		if err := aliceSmokeTestFn(alicePipe, &bobKeys.PublicKey); err != nil {
 			aliceCh <- err
 			alicePipe.Close()
 		}
@@ -58,7 +56,7 @@ func TestObfuscationSmoke(t *testing.T) {
 	}
 	bobTestFn := func() {
 		defer wg.Done()
-		if err := bobSmokeTestFn(bobPipe, &bobKeys); err != nil {
+		if err := bobSmokeTestFn(bobPipe, bobKeys); err != nil {
 			bobCh <- err
 			bobPipe.Close()
 		}
@@ -80,7 +78,7 @@ func TestObfuscationSmoke(t *testing.T) {
 	}
 }
 
-func aliceSmokeTestFn(conn net.Conn, bobPk *[32]byte) error {
+func aliceSmokeTestFn(conn net.Conn, bobPk *identity.PublicKey) error {
 	obfs, err := newClientObfs(bobPk)
 	if err != nil {
 		return err
@@ -95,7 +93,7 @@ func aliceSmokeTestFn(conn net.Conn, bobPk *[32]byte) error {
 	return nil
 }
 
-func bobSmokeTestFn(conn net.Conn, keys *serverObfsKeypair) error {
+func bobSmokeTestFn(conn net.Conn, keys *identity.PrivateKey) error {
 	obfs, err := newServerObfs(keys)
 	if err != nil {
 		return err
