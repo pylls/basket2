@@ -79,7 +79,7 @@ func TestObfuscationSmoke(t *testing.T) {
 }
 
 func aliceSmokeTestFn(conn net.Conn, bobPk *identity.PublicKey) error {
-	obfs, err := newClientObfs(bobPk)
+	obfs, err := newClientObfs(rand.Reader, bobPk)
 	if err != nil {
 		return err
 	}

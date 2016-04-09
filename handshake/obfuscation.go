@@ -17,7 +17,6 @@
 package handshake
 
 import (
-	"crypto/rand"
 	"crypto/subtle"
 	"encoding/binary"
 	"errors"
@@ -165,14 +164,14 @@ func (o *clientObfsCtx) reset() {
 // Note: Due to the rejection sampling in Elligator 2 keypair generation, this
 // should be done offline.  The timing variation only leaks information about
 // the obfuscation method, and does not compromise secrecy or integrity.
-func newClientObfs(serverPublicKey *identity.PublicKey) (*clientObfsCtx, error) {
+func newClientObfs(rand io.Reader, serverPublicKey *identity.PublicKey) (*clientObfsCtx, error) {
 	o := new(clientObfsCtx)
 	o.serverPublicKey = serverPublicKey
 
 	// Generate a Curve25519 keypair, along with an Elligator 2 uniform
 	// random representative of the public key.
 	var publicKey [32]byte // Don't need our public key past validation.
-	if err := elligator2.GenerateKey(rand.Reader, &publicKey, &o.repr, &o.privKey); err != nil {
+	if err := elligator2.GenerateKey(rand, &publicKey, &o.repr, &o.privKey); err != nil {
 		return nil, err
 	}
 	if crypto.MemIsZero(publicKey[:]) {
