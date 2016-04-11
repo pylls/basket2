@@ -16,14 +16,15 @@ Features:
    key exchange mechanisms.
  * Significantly improved link layer framing.
  * Optional user authentication.
- * Optional post-quantum forward secrecy.
+ * Post-quantum forward secrecy.
  * License switch from 3BSD to AGPL for more Freedom.
 
 Dependencies:
 
- * Go 1.5.x - (May work with older versions, don't care if they don't)
+ * Go 1.6.x or later - (May work with older versions, don't care if they don't)
  * golang.org/x/crypto - SHA3, Curve25519, Poly1305
  * github.com/agl/ed25519 - Ed25519, Edwards curve field arithmatic
+ * github.com/dchest/siphash - SipHash-2-4
  * git.schwanenlied.me/yawning/chacha20.git - (X)ChaCha20
  * git.schwanenlied.me/yawning/x448.git - X448
  * git.schwanenlied.me/yawning/newhope.git - newhope

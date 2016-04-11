@@ -38,6 +38,10 @@ func TestObfuscationSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to generate bobSk: %v", err)
 	}
+	replay, err := newReplayFilter(rand.Reader)
+	if err != nil {
+		t.Fatalf("failed to generate replay filter: %v", err)
+	}
 
 	// Launch Alice and Bob's portions in their own go routines.
 	var wg sync.WaitGroup
@@ -56,7 +60,7 @@ func TestObfuscationSmoke(t *testing.T) {
 	}
 	bobTestFn := func() {
 		defer wg.Done()
-		if err := bobSmokeTestFn(bobPipe, bobKeys); err != nil {
+		if err := bobSmokeTestFn(replay, bobPipe, bobKeys); err != nil {
 			bobCh <- err
 			bobPipe.Close()
 		}
@@ -93,8 +97,8 @@ func aliceSmokeTestFn(conn net.Conn, bobPk *identity.PublicKey) error {
 	return nil
 }
 
-func bobSmokeTestFn(conn net.Conn, keys *identity.PrivateKey) error {
-	obfs, err := newServerObfs(keys)
+func bobSmokeTestFn(replay *replayFilter, conn net.Conn, keys *identity.PrivateKey) error {
+	obfs, err := newServerObfs(replay, keys)
 	if err != nil {
 		return err
 	}

@@ -45,6 +45,7 @@ var (
 	ErrInvalidPoint = errors.New("obfs: invalid point")
 	ErrInvalidCmd   = errors.New("obfs: invalid command")
 	ErrInvalidMark  = errors.New("obfs: client send invalid mark")
+	ErrReplay       = errors.New("obfs: client sent replayed handshake")
 	ErrNoPayload    = errors.New("obfs: no handshake paylaod")
 )
 
@@ -194,6 +195,8 @@ type serverObfsCtx struct {
 	keypair      *identity.PrivateKey
 	sharedSecret [32]byte
 	keyHash      sha3.ShakeHash
+
+	replay *replayFilter
 }
 
 // reset sanitizes private values from the server handshake obfuscator state.
@@ -219,6 +222,7 @@ func (o *serverObfsCtx) recvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
 		return nil, err
 	}
 	eh := getEpochHour()
+	var ehActual uint64
 	markOk := false
 	for _, v := range []uint64{eh - 1, eh, eh + 1} {
 		// This is kind of expensive. :(
@@ -234,6 +238,7 @@ func (o *serverObfsCtx) recvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
 		derivedMark := markHash.Sum(nil)
 		if subtle.ConstantTimeCompare(derivedMark[:], mark[:]) == 1 {
 			markOk = true
+			ehActual = eh
 		}
 	}
 	if !markOk {
@@ -242,7 +247,12 @@ func (o *serverObfsCtx) recvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
 		return nil, ErrInvalidMark
 	}
 
-	// XXX: Replay check the mark.
+	// Replay check the mark.  Since the mark covers everything required
+	// to actually decrypt the handshake payload, this is sufficient to
+	// ensure that replayed handshakes are rejected.
+	if o.replay.testAndSet(&mark, ehActual) {
+		return nil, ErrReplay
+	}
 
 	// Calculate the shared secret, with the client's representative and our
 	// long term private key.
@@ -312,9 +322,10 @@ func (o *serverObfsCtx) sendHandshakeResp(rw io.ReadWriter, msg []byte, padLen i
 	return nil
 }
 
-func newServerObfs(staticObfsKeypair *identity.PrivateKey) (*serverObfsCtx, error) {
+func newServerObfs(replay *replayFilter, staticObfsKeypair *identity.PrivateKey) (*serverObfsCtx, error) {
 	o := new(serverObfsCtx)
 	o.keypair = staticObfsKeypair
+	o.replay = replay
 
 	// The paranoid thing to do would be to validate that the public key
 	// actually comes from the private key, but this is an internal API,
