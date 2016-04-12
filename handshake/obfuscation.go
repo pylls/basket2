@@ -39,8 +39,8 @@ const (
 )
 
 var (
-	obfsMarkTweak = []byte("basket2-obfs-mark-tweak")
-	obfsKdfTweak  = []byte("basket2-obfs-kdf-tweak")
+	obfsMarkTweak = []byte("basket2-obfs-v0-mark-tweak")
+	obfsKdfTweak  = []byte("basket2-obfs-v0-kdf-tweak")
 
 	ErrInvalidPoint = errors.New("obfs: invalid point")
 	ErrInvalidCmd   = errors.New("obfs: invalid command")
