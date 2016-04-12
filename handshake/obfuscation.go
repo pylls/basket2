@@ -20,6 +20,7 @@ import (
 	"crypto/subtle"
 	"encoding/binary"
 	"errors"
+	"hash"
 	"io"
 	"time"
 
@@ -39,8 +40,9 @@ const (
 )
 
 var (
-	obfsMarkTweak = []byte("basket2-obfs-v0-mark-tweak")
-	obfsKdfTweak  = []byte("basket2-obfs-v0-kdf-tweak")
+	obfsMarkTweak  = []byte("basket2-obfs-v0-mark-tweak")
+	obfsKdfTweak   = []byte("basket2-obfs-v0-kdf-tweak")
+	obfsTransTweak = []byte("basket2-obfs-v0-transcript-tweak")
 
 	ErrInvalidPoint = errors.New("obfs: invalid point")
 	ErrInvalidCmd   = errors.New("obfs: invalid command")
@@ -56,6 +58,8 @@ type clientObfsCtx struct {
 	privKey      [32]byte
 	repr         [32]byte
 	sharedSecret [32]byte
+
+	transcriptDigest [32]byte
 }
 
 // handshake obfuscates and transmits the request message msg, and returns the
@@ -67,6 +71,9 @@ func (o *clientObfsCtx) handshake(rw io.ReadWriter, msg []byte, padLen int) ([]b
 	var epochHour [8]byte
 	eh := getEpochHour()
 	binary.BigEndian.PutUint64(epochHour[:], eh)
+
+	tHash := sha3.New256()
+	tHash.Write(obfsTransTweak)
 
 	// Craft the request blob:
 	//  uint8_t representative[32]
@@ -108,6 +115,7 @@ func (o *clientObfsCtx) handshake(rw io.ReadWriter, msg []byte, padLen int) ([]b
 		return nil, err
 	}
 	reqBlob = append(reqBlob, frame...)
+	tHash.Write(reqBlob)
 
 	// Send the request blob.
 	if _, err := rw.Write(reqBlob[:]); err != nil {
@@ -119,6 +127,7 @@ func (o *clientObfsCtx) handshake(rw io.ReadWriter, msg []byte, padLen int) ([]b
 	if _, err := io.ReadFull(rw, respHdr[:]); err != nil {
 		return nil, err
 	}
+	tHash.Write(respHdr[:])
 	respCmd, want, err := dec.DecodeRecordHdr(respHdr[:])
 	if err != nil {
 		return nil, err
@@ -150,6 +159,9 @@ func (o *clientObfsCtx) handshake(rw io.ReadWriter, msg []byte, padLen int) ([]b
 	if _, err := io.ReadFull(rw, respBody); err != nil {
 		return nil, err
 	}
+	tHash.Write(respBody)
+	tSum := tHash.Sum(nil)
+	copy(o.transcriptDigest[:], tSum)
 	return dec.DecodeRecordBody(respBody)
 }
 
@@ -192,9 +204,11 @@ func newClientObfs(rand io.Reader, serverPublicKey *identity.PublicKey) (*client
 type serverObfsCtx struct {
 	clientPublicKey [32]byte
 
-	keypair      *identity.PrivateKey
-	sharedSecret [32]byte
-	keyHash      sha3.ShakeHash
+	keypair          *identity.PrivateKey
+	sharedSecret     [32]byte
+	keyHash          sha3.ShakeHash
+	tHash            hash.Hash
+	transcriptDigest [32]byte
 
 	replay *replayFilter
 }
@@ -254,6 +268,11 @@ func (o *serverObfsCtx) recvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
 		return nil, ErrReplay
 	}
 
+	o.tHash = sha3.New256()
+	o.tHash.Write(obfsTransTweak)
+	o.tHash.Write(repr[:])
+	o.tHash.Write(mark[:])
+
 	// Calculate the shared secret, with the client's representative and our
 	// long term private key.
 	elligator2.RepresentativeToPublicKey(&o.clientPublicKey, &repr)
@@ -280,6 +299,7 @@ func (o *serverObfsCtx) recvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
 	if _, err := io.ReadFull(rw, reqHdr[:]); err != nil {
 		return nil, err
 	}
+	o.tHash.Write(reqHdr[:])
 	reqCmd, want, err := dec.DecodeRecordHdr(reqHdr[:])
 	if err != nil {
 		return nil, err
@@ -297,6 +317,7 @@ func (o *serverObfsCtx) recvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
 	if _, err := io.ReadFull(rw, reqBody); err != nil {
 		return nil, err
 	}
+	o.tHash.Write(reqBody)
 	return dec.DecodeRecordBody(reqBody)
 }
 
@@ -319,6 +340,9 @@ func (o *serverObfsCtx) sendHandshakeResp(rw io.ReadWriter, msg []byte, padLen i
 	if _, err := rw.Write(frame); err != nil {
 		return err
 	}
+	o.tHash.Write(frame)
+	tSum := o.tHash.Sum(nil)
+	copy(o.transcriptDigest[:], tSum)
 	return nil
 }
 
