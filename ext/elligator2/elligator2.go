@@ -119,7 +119,11 @@ func GenerateKey(random io.Reader, publicKey, representative, privateKey *[32]by
 			if _, err := io.ReadFull(random, bits[:]); err != nil {
 				return err
 			}
-			representative[31] |= bits[0] & 0xc0
+
+			// Whiten the bits, such that the direct output of the system
+			// entropy source never appears on the wire.
+			low, hi := (bits[0]&0x0f)<<4, bits[0]&0xf0
+			representative[31] |= (low ^ hi) & 0xc0
 
 			return nil
 		}
