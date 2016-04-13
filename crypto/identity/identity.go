@@ -1,4 +1,4 @@
-// identity.go - Identity key routines. 
+// identity.go - Identity key routines.
 // Copyright (C) 2015  Yawning Angel.
 //
 // This program is free software: you can redistribute it and/or modify
@@ -30,12 +30,14 @@ import (
 
 const (
 	SharedSecretSize = 32
-	PublicKeySize = ed25519.PublicKeySize
-	PrivateKeySize = ed25519.PrivateKeySize
-	SignatureSize = ed25519.SignatureSize
+	PublicKeySize    = ed25519.PublicKeySize
+	PrivateKeySize   = ed25519.PrivateKeySize
+	SignatureSize    = ed25519.SignatureSize
 
 	maxKeygenAttempts = 8
 )
+
+var identityRandTweak = []byte("basket2-identity-tweak")
 
 type PrivateKey struct {
 	PublicKey
@@ -68,10 +70,15 @@ func (k *PrivateKey) Reset() {
 func NewPrivateKey(rand io.Reader) (*PrivateKey, error) {
 	var err error
 	k := new(PrivateKey)
+	h, err := crypto.NewTweakedShake256(rand, identityRandTweak)
+	if err != nil {
+		return nil, err
+	}
+	defer h.Reset()
 
 	for iters := 0; iters < maxKeygenAttempts; iters++ {
 		// Generate the Ed25519 keypair.
-		k.DSAPublicKey, k.DSAPrivateKey, err = ed25519.GenerateKey(rand)
+		k.DSAPublicKey, k.DSAPrivateKey, err = ed25519.GenerateKey(h)
 		if err != nil {
 			return nil, err
 		}
@@ -93,5 +100,3 @@ type PublicKey struct {
 	DSAPublicKey *[PublicKeySize]byte
 	KEXPublicKey [PublicKeySize]byte
 }
-
-
