@@ -183,7 +183,7 @@ func TestElligator2Fuzz(t *testing.T) {
 
 		RepresentativeToPublicKey(&pkRev, &repr)
 		if !bytes.Equal(pkRev[:], pk[:]) {
-			t.Fatalf("[%d]: Reversed mapping failed.")
+			t.Fatalf("[%d]: Reversed mapping failed.", i)
 		}
 	}
 
