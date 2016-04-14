@@ -71,17 +71,16 @@ func (f *replayFilter) testAndSet(mark *[32]byte, epochHour uint64) bool {
 		return true
 	}
 
-	// The filter is full, make room for a single entry by deleting one at
-	// "random".  This should essentially never happen, unless I
-	// catastropically undersized the max filter size.
+	// If the filter is full...
 	if len(f.filter) >= maxFilterSize {
-		// This is kind of stupid, but the interation order is semi-random.
-		// In theory the filter is sized quite large and is compacted
-		// periodically, so this shouldn't get triggered ever, so the kludgey
-		// nature of "random" should be ok...
-		for victim := range f.filter {
-			delete(f.filter, victim)
-			break
+		// Attempt to evict an old entry...
+		if !f.compactLocked() {
+			// Failed to evict.  We can either evict one at random and hope
+			// nothing evil is going on, or treat everything as a hit till
+			// we have the capacity to prevent replays.  Both options kind
+			// of suck, but opt for "Deny new connections till replay
+			// prevention is possible again".
+			return true
 		}
 	}
 
@@ -90,9 +89,22 @@ func (f *replayFilter) testAndSet(mark *[32]byte, epochHour uint64) bool {
 	return false
 }
 
+func (f *replayFilter) compactLocked() bool {
+	eh := getEpochHour()
+
+	// Iterate over the filter, purging entries older than the current
+	// epoch - 1, since they will no longer be accepted.
+	for k, v := range f.filter {
+		if v < eh-1 {
+			delete(f.filter, k)
+		}
+	}
+
+	return len(f.filter) < maxFilterSize
+}
+
 func (f *replayFilter) fullCompact() {
 	now := time.Now()
-	eh := getEpochHour()
 
 	f.Lock()
 	defer f.Unlock()
@@ -103,14 +115,9 @@ func (f *replayFilter) fullCompact() {
 		// it's not really possible for the filter to be "sane", just dump
 		// the whole thing.
 		f.filter = make(map[uint64]uint64)
-	}
-
-	// Iterate over the entire filter, purging entries older than the current
-	// epoch - 1, since they will no longer be accepted.
-	for k, v := range f.filter {
-		if v < eh-1 {
-			delete(f.filter, k)
-		}
+	} else {
+		// Attempt to prune all stale entries from the filter.
+		f.compactLocked()
 	}
 
 	// Schedule the next compaction.
