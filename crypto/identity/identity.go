@@ -29,16 +29,24 @@ import (
 )
 
 const (
+	// SharedSecretSize is the side of a ECDH shared secret in bytes.
 	SharedSecretSize = 32
-	PublicKeySize    = ed25519.PublicKeySize
-	PrivateKeySize   = ed25519.PrivateKeySize
-	SignatureSize    = ed25519.SignatureSize
+
+	// PublicKeySize is the side of a PublicKey in bytes.
+	PublicKeySize = ed25519.PublicKeySize
+
+	// PrivateKeySize is the size of a PrivateKey in bytes.
+	PrivateKeySize = ed25519.PrivateKeySize
+
+	// SignatureSize is the size of a Signature in bytes.
+	SignatureSize = ed25519.SignatureSize
 
 	maxKeygenAttempts = 8
 )
 
 var identityRandTweak = []byte("basket2-identity-tweak")
 
+// PrivateKey is a EdDSA private key and it's X25519 counterpart.
 type PrivateKey struct {
 	PublicKey
 	DSAPrivateKey *[PrivateKeySize]byte
@@ -96,6 +104,7 @@ func NewPrivateKey(rand io.Reader) (*PrivateKey, error) {
 	panic("crypto/identity: failed to generate keypair, broken rng?")
 }
 
+// PublicKey is a EdDSA public key and it's X25519 counterpart.
 type PublicKey struct {
 	DSAPublicKey *[PublicKeySize]byte
 	KEXPublicKey [PublicKeySize]byte

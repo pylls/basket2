@@ -44,11 +44,23 @@ var (
 	obfsKdfTweak   = []byte("basket2-obfs-v0-kdf-tweak")
 	obfsTransTweak = []byte("basket2-obfs-v0-transcript-tweak")
 
+	// ErrInvalidPoint is the error returned when the obfuscation crypto fails.
 	ErrInvalidPoint = errors.New("obfs: invalid point")
-	ErrInvalidCmd   = errors.New("obfs: invalid command")
-	ErrInvalidMark  = errors.New("obfs: client send invalid mark")
-	ErrReplay       = errors.New("obfs: client sent replayed handshake")
-	ErrNoPayload    = errors.New("obfs: no handshake paylaod")
+
+	// ErrInvalidCmd is the error returned on a invalid obfuscated handshake
+	// payload command.
+	ErrInvalidCmd = errors.New("obfs: invalid command")
+
+	// ErrInvalidMark is the error returned when the client mark is invalid.
+	ErrInvalidMark = errors.New("obfs: client send invalid mark")
+
+	// ErrReplay is the error returned when the client appears to be replaying
+	// a previously seen handshake.
+	ErrReplay = errors.New("obfs: client sent replayed handshake")
+
+	// ErrNoPayload is the error returned when the obfuscated handshake
+	// contains no payload.
+	ErrNoPayload = errors.New("obfs: no handshake paylaod")
 )
 
 // clientObfsCtx is the client handshake obfuscator state.
