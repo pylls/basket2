@@ -20,6 +20,7 @@ package identity
 
 import (
 	"io"
+	"runtime"
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
 
@@ -84,6 +85,7 @@ func NewPrivateKey(rand io.Reader) (*PrivateKey, error) {
 	}
 	defer h.Reset()
 
+	runtime.SetFinalizer(k, finalizePrivateKey) // Not always run on exit.
 	for iters := 0; iters < maxKeygenAttempts; iters++ {
 		// Generate the Ed25519 keypair.
 		k.DSAPublicKey, k.DSAPrivateKey, err = ed25519.GenerateKey(h)
@@ -102,6 +104,10 @@ func NewPrivateKey(rand io.Reader) (*PrivateKey, error) {
 	// This should essentially never happen, even with a relatively low
 	// retry count.
 	panic("crypto/identity: failed to generate keypair, broken rng?")
+}
+
+func finalizePrivateKey(k *PrivateKey) {
+	k.Reset()
 }
 
 // PublicKey is a EdDSA public key and it's X25519 counterpart.
