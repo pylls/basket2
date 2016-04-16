@@ -24,6 +24,7 @@ import (
 	"sync"
 	"testing"
 
+	"git.schwanenlied.me/yawning/a2filter.git"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
 )
 
@@ -38,7 +39,9 @@ func TestObfuscationSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to generate bobSk: %v", err)
 	}
-	replay, err := NewReplayFilter(rand.Reader)
+
+	// 2 MiB *2, 1/10k false positive rate, 109,396 entries.
+	replay, err := a2filter.New(21, 0.0001)
 	if err != nil {
 		t.Fatalf("failed to generate replay filter: %v", err)
 	}
@@ -97,7 +100,7 @@ func aliceSmokeTestFn(conn net.Conn, bobPk *identity.PublicKey) error {
 	return nil
 }
 
-func bobSmokeTestFn(replay *ReplayFilter, conn net.Conn, keys *identity.PrivateKey) error {
+func bobSmokeTestFn(replay *a2filter.A2Filter, conn net.Conn, keys *identity.PrivateKey) error {
 	obfs, err := newServerObfs(replay, keys)
 	if err != nil {
 		return err

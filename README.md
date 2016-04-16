@@ -25,8 +25,8 @@ Dependencies:
  * golang.org/x/crypto - SHA3, Curve25519, Poly1305
  * github.com/agl/ed25519 - Ed25519, Edwards curve field arithmatic
  * github.com/dchest/siphash - SipHash-2-4
+ * git.schwanenlied.me/yawning/a2filter.git - Active-Active Bloom Filter
  * git.schwanenlied.me/yawning/chacha20.git - (X)ChaCha20
- * git.schwanenlied.me/yawning/x448.git - X448
  * git.schwanenlied.me/yawning/newhope.git - newhope
 
 Notes:
@@ -58,7 +58,7 @@ Notes:
    I feel comfortable with being able to obfsucate.
 
  * Yeah, this uses SHA3 instead of whatever trendy BLAKE variant kids like
-   these days.
+   these days.  SHAKE is love, SHAKE is life.
 
  * If your system has busted PMTUD, this probably won't work at all.  Not my
    problem.  Complain to your OS vendor.
