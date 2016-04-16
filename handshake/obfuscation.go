@@ -222,7 +222,7 @@ type serverObfsCtx struct {
 	tHash            hash.Hash
 	transcriptDigest [32]byte
 
-	replay *replayFilter
+	replay *ReplayFilter
 }
 
 // reset sanitizes private values from the server handshake obfuscator state.
@@ -358,7 +358,7 @@ func (o *serverObfsCtx) sendHandshakeResp(rw io.ReadWriter, msg []byte, padLen i
 	return nil
 }
 
-func newServerObfs(replay *replayFilter, staticObfsKeypair *identity.PrivateKey) (*serverObfsCtx, error) {
+func newServerObfs(replay *ReplayFilter, staticObfsKeypair *identity.PrivateKey) (*serverObfsCtx, error) {
 	o := new(serverObfsCtx)
 	o.keypair = staticObfsKeypair
 	o.replay = replay

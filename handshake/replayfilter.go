@@ -32,7 +32,9 @@ const (
 	fullCompactInterval = 60 * time.Minute
 )
 
-type replayFilter struct {
+// ReplayFilter is the handshake replay detection filter.  It should be
+// created per listener (or equivalent).
+type ReplayFilter struct {
 	sync.Mutex
 
 	h hash.Hash64
@@ -43,21 +45,23 @@ type replayFilter struct {
 	compactTimer  *time.Timer
 }
 
-func newReplayFilter(rand io.Reader) (*replayFilter, error) {
+// NewReplayFilter constructs a new ReplayFilter instance using the provided
+// entropy source to key the internal hash table.
+func NewReplayFilter(rand io.Reader) (*ReplayFilter, error) {
 	var k [16]byte
 	defer crypto.Memwipe(k[:])
 	if _, err := io.ReadFull(rand, k[:]); err != nil {
 		return nil, err
 	}
 
-	f := new(replayFilter)
+	f := new(ReplayFilter)
 	f.h = siphash.New(k[:])
 	f.filter = make(map[uint64]uint64)
 	f.compactTimer = time.AfterFunc(fullCompactInterval, f.fullCompact)
 	return f, nil
 }
 
-func (f *replayFilter) testAndSet(mark *[32]byte, epochHour uint64) bool {
+func (f *ReplayFilter) testAndSet(mark *[32]byte, epochHour uint64) bool {
 	f.Lock()
 	defer f.Unlock()
 
@@ -89,7 +93,7 @@ func (f *replayFilter) testAndSet(mark *[32]byte, epochHour uint64) bool {
 	return false
 }
 
-func (f *replayFilter) compactLocked() bool {
+func (f *ReplayFilter) compactLocked() bool {
 	eh := getEpochHour()
 
 	// Iterate over the filter, purging entries older than the current
@@ -103,7 +107,7 @@ func (f *replayFilter) compactLocked() bool {
 	return len(f.filter) < maxFilterSize
 }
 
-func (f *replayFilter) fullCompact() {
+func (f *ReplayFilter) fullCompact() {
 	now := time.Now()
 
 	f.Lock()
@@ -113,7 +117,8 @@ func (f *replayFilter) fullCompact() {
 		// What the fuck, the system time jumped backwards by more than the
 		// compaction interval.  NTP is a thing, people should use it.  Since
 		// it's not really possible for the filter to be "sane", just dump
-		// the whole thing.
+		// the whole thing.  The compaction interval is such that minor clock
+		// updates due to NTP should not trigger this safeguard.
 		f.filter = make(map[uint64]uint64)
 	} else {
 		// Attempt to prune all stale entries from the filter.

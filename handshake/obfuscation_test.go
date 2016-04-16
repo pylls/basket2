@@ -38,7 +38,7 @@ func TestObfuscationSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to generate bobSk: %v", err)
 	}
-	replay, err := newReplayFilter(rand.Reader)
+	replay, err := NewReplayFilter(rand.Reader)
 	if err != nil {
 		t.Fatalf("failed to generate replay filter: %v", err)
 	}
@@ -97,7 +97,7 @@ func aliceSmokeTestFn(conn net.Conn, bobPk *identity.PublicKey) error {
 	return nil
 }
 
-func bobSmokeTestFn(replay *replayFilter, conn net.Conn, keys *identity.PrivateKey) error {
+func bobSmokeTestFn(replay *ReplayFilter, conn net.Conn, keys *identity.PrivateKey) error {
 	obfs, err := newServerObfs(replay, keys)
 	if err != nil {
 		return err
