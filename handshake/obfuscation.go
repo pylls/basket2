@@ -41,7 +41,7 @@ const (
 )
 
 var (
-	obfsMarkTweak  = []byte("basket2-obfs-v0-mark-tweak")
+	obfsMACTweak   = []byte("basket2-obfs-v0-mac-tweak")
 	obfsKdfTweak   = []byte("basket2-obfs-v0-kdf-tweak")
 	obfsTransTweak = []byte("basket2-obfs-v0-transcript-tweak")
 
@@ -54,8 +54,8 @@ var (
 	// payload command.
 	ErrInvalidCmd = errors.New("obfs: invalid command")
 
-	// ErrInvalidMark is the error returned when the client mark is invalid.
-	ErrInvalidMark = errors.New("obfs: client send invalid mark")
+	// ErrInvalidMAC is the error returned when the client mac is invalid.
+	ErrInvalidMAC = errors.New("obfs: client send invalid MAC")
 
 	// ErrReplay is the error returned when the client appears to be replaying
 	// a previously seen handshake.
@@ -92,26 +92,26 @@ func (o *clientObfsCtx) handshake(rw io.ReadWriter, msg []byte, padLen int) ([]b
 
 	// Craft the request blob:
 	//  uint8_t representative[32]
-	//  uint8_t mark[32] (SHA3-256(markTweak | serverPk | repr | epochHour)
+	//  uint8_t mac[32] (SHA3-256(macTweak | serverPk | repr | epochHour)
 	//  uint8_t cipherText[] (TENTP(reqKey, cmd, msg, padLen))
 	//
 	// Note: The cipherText is structured such that the decoder can determine
 	// the length.
 	reqBlob := make([]byte, 0, obfsClientOverhead+len(msg)+padLen)
 	reqBlob = append(reqBlob, o.repr[:]...)
-	markHash := sha3.New256()
-	markHash.Write(obfsMarkTweak[:])
-	markHash.Write(o.serverPublicKey.KEXPublicKey[:])
-	markHash.Write(o.repr[:])
-	markHash.Write(epochHour[:])
-	reqBlob = markHash.Sum(reqBlob)
+	macHash := sha3.New256()
+	macHash.Write(obfsMACTweak[:])
+	macHash.Write(o.serverPublicKey.KEXPublicKey[:])
+	macHash.Write(o.repr[:])
+	macHash.Write(epochHour[:])
+	reqBlob = macHash.Sum(reqBlob)
 
 	// Derive the reqKey/respKey used for the handshake.
 	keyHash := sha3.NewShake256()
 	defer keyHash.Reset()
 	keyHash.Write(obfsKdfTweak)
 	keyHash.Write(o.sharedSecret[:])
-	keyHash.Write(reqBlob[32:64]) // Include the mark in the KDF input.
+	keyHash.Write(reqBlob[32:64]) // Include the MAC in the KDF input.
 
 	// Initialize the frame encoder and decoder used for the duration of
 	// the handshake process, and frame the handshake record.
@@ -220,7 +220,6 @@ type serverObfsCtx struct {
 	clientPublicKey [32]byte
 
 	keypair          *identity.PrivateKey
-	sharedSecret     [32]byte
 	keyHash          sha3.ShakeHash
 	tHash            hash.Hash
 	transcriptDigest [32]byte
@@ -231,7 +230,6 @@ type serverObfsCtx struct {
 // reset sanitizes private values from the server handshake obfuscator state.
 func (o *serverObfsCtx) reset() {
 	o.keypair = nil // It's a pointer. >.>
-	crypto.Memwipe(o.sharedSecret[:])
 	if o.keyHash != nil {
 		o.keyHash.Reset()
 	}
@@ -244,54 +242,56 @@ func (o *serverObfsCtx) recvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
 		return nil, err
 	}
 
-	// Read/Validate the client mark, allowing for +- 1h clock difference
+	// Read/Validate the client MAC, allowing for +- 1h clock difference
 	// between the client and server.
-	var mark [32]byte
-	if _, err := io.ReadFull(rw, mark[:]); err != nil {
+	var mac [32]byte
+	if _, err := io.ReadFull(rw, mac[:]); err != nil {
 		return nil, err
 	}
 	eh := getEpochHour()
-	markOk := false
+	macOk := false
 	for _, v := range []uint64{eh - 1, eh, eh + 1} {
 		// This is kind of expensive. :(
 		var epochHour [8]byte
 		binary.BigEndian.PutUint64(epochHour[:], v)
 
-		markHash := sha3.New256()
-		markHash.Write(obfsMarkTweak[:])
-		markHash.Write(o.keypair.KEXPublicKey[:])
-		markHash.Write(repr[:])
-		markHash.Write(epochHour[:])
+		macHash := sha3.New256()
+		macHash.Write(obfsMACTweak[:])
+		macHash.Write(o.keypair.KEXPublicKey[:])
+		macHash.Write(repr[:])
+		macHash.Write(epochHour[:])
 
-		derivedMark := markHash.Sum(nil)
-		if subtle.ConstantTimeCompare(derivedMark[:], mark[:]) == 1 {
-			markOk = true
+		derivedMAC := macHash.Sum(nil)
+		if subtle.ConstantTimeCompare(derivedMAC[:], mac[:]) == 1 {
+			macOk = true
 		}
 	}
-	if !markOk {
-		// Invalid mark, either the clock skew is too large or the peer
+	if !macOk {
+		// Invalid MAC, either the clock skew is too large or the peer
 		// isn't supposed to be connecting to us.
-		return nil, ErrInvalidMark
+		return nil, ErrInvalidMAC
 	}
 
-	// Replay check the mark.  Since the mark covers everything required
+	// Replay check the MAC.  Since the MAC covers everything required
 	// to actually decrypt the handshake payload, this is sufficient to
 	// ensure that replayed handshakes are rejected.
-	if o.replay.TestAndSet(mark[:]) {
+	if o.replay.TestAndSet(mac[:]) {
 		return nil, ErrReplay
 	}
 
 	o.tHash = sha3.New256()
 	o.tHash.Write(obfsTransTweak)
 	o.tHash.Write(repr[:])
-	o.tHash.Write(mark[:])
+	o.tHash.Write(mac[:])
 
 	// Calculate the shared secret, with the client's representative and our
 	// long term private key.
+	var sharedSecret [32]byte
 	elligator2.RepresentativeToPublicKey(&o.clientPublicKey, &repr)
-	if !o.keypair.ScalarMult(&o.sharedSecret, &o.clientPublicKey) {
+	if !o.keypair.ScalarMult(&sharedSecret, &o.clientPublicKey) {
 		return nil, ErrInvalidPoint
 	}
+	defer crypto.Memwipe(sharedSecret[:])
 
 	// Derive the handshake symmetric keys, and initialize the frame decoder
 	// used to decode the handshake request.  As this function is split,
@@ -299,8 +299,8 @@ func (o *serverObfsCtx) recvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
 	// sent.
 	o.keyHash = sha3.NewShake256()
 	o.keyHash.Write(obfsKdfTweak)
-	o.keyHash.Write(o.sharedSecret[:])
-	o.keyHash.Write(mark[:]) // Include the mark in the KDF input.
+	o.keyHash.Write(sharedSecret[:])
+	o.keyHash.Write(mac[:]) // Include the MAC in the KDF input.
 	dec, err := tentp.NewDecoderFromKDF(o.keyHash)
 	if err != nil {
 		return nil, err
