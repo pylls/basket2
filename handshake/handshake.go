@@ -39,7 +39,8 @@ const (
 	// X25519NewHope is the current X25519/New Hope based handshake method.
 	X25519NewHope Method = iota
 
-	handshakeVersion = 0
+	// HandshakeVersion is the current handshake version.
+	HandshakeVersion = 0
 
 	clientReqSize  = 1 + 1 + newhope.SendASize
 	serverRespSize = 1 + 1 + 32 + newhope.SendBSize
@@ -143,7 +144,7 @@ func (c *ClientHandshake) Handshake(rw io.ReadWriter, extData []byte, padLen int
 
 	// Craft the handshake request blob.
 	reqBlob := make([]byte, 0, clientReqSize+len(extData))
-	reqBlob = append(reqBlob, handshakeVersion)
+	reqBlob = append(reqBlob, HandshakeVersion)
 	reqBlob = append(reqBlob, byte(c.method))
 	reqBlob = append(reqBlob, c.nhPublicKey.Send[:]...)
 	reqBlob = append(reqBlob, extData...)
@@ -162,7 +163,7 @@ func (c *ClientHandshake) Handshake(rw io.ReadWriter, extData []byte, padLen int
 	if len(respBlob) < serverRespSize {
 		return nil, nil, ErrInvalidPayload
 	}
-	if respBlob[0] != handshakeVersion {
+	if respBlob[0] != HandshakeVersion {
 		return nil, nil, ErrInvalidPayload
 	}
 	if respBlob[1] != byte(X25519NewHope) {
@@ -267,7 +268,7 @@ func (s *ServerHandshake) RecvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
 	if len(reqBlob) < clientReqSize {
 		return nil, ErrInvalidPayload
 	}
-	if reqBlob[0] != handshakeVersion {
+	if reqBlob[0] != HandshakeVersion {
 		return nil, ErrInvalidPayload
 	}
 	if reqBlob[1] != byte(X25519NewHope) {
@@ -297,7 +298,7 @@ func (s *ServerHandshake) SendHandshakeResp(rand io.Reader, rw io.ReadWriter, ex
 	// Craft the static portions of the response body, which will be appended
 	// to as the handshake proceeds.
 	respBlob := make([]byte, 0, serverRespSize+len(extData))
-	respBlob = append(respBlob, handshakeVersion)
+	respBlob = append(respBlob, HandshakeVersion)
 	respBlob = append(respBlob, byte(s.method))
 
 	// Generate a new X25519 keypair.
