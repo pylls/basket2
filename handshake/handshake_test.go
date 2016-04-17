@@ -44,6 +44,7 @@ type testState struct {
 
 	aliceCh, bobCh     chan error
 	alicePipe, bobPipe net.Conn
+	aliceRw, bobRw     *countingReadWriter
 	kdfCh              chan *SessionKeys
 }
 
@@ -56,7 +57,7 @@ func (s *testState) aliceRoutine() {
 		return
 	}
 
-	k, extData, err := hs.Handshake(s.alicePipe, clientExtData, 0)
+	k, extData, err := hs.Handshake(s.aliceRw, clientExtData, 0)
 	if err != nil {
 		s.aliceCh <- err
 		return
@@ -79,7 +80,7 @@ func (s *testState) bobRoutine() {
 		return
 	}
 
-	extData, err := hs.RecvHandshakeReq(s.bobPipe)
+	extData, err := hs.RecvHandshakeReq(s.bobRw)
 	if err != nil {
 		s.bobCh <- err
 		return
@@ -90,7 +91,7 @@ func (s *testState) bobRoutine() {
 		return
 	}
 
-	k, err := hs.SendHandshakeResp(rand.Reader, s.bobPipe, serverExtData, 0)
+	k, err := hs.SendHandshakeResp(rand.Reader, s.bobRw, serverExtData, 0)
 	if err != nil {
 		s.bobCh <- err
 	}
@@ -124,6 +125,18 @@ func (s *testState) oneIter() error {
 		return fmt.Errorf("kdf output mismatch")
 	}
 
+	// Sanity check to ensure that the amount of data sent on the wire each
+	// way is identical, after the difference in test vector length is
+	// accounted for (Never let ease of test writing detract from using cool
+	// test vectors).
+	lenDiff := uint64(len(serverExtData) - len(clientExtData))
+	if s.aliceRw.bytesWrite+lenDiff != s.bobRw.bytesWrite {
+		return fmt.Errorf("bytes written count mismatch")
+	}
+
+	s.aliceRw.reset()
+	s.bobRw.reset()
+
 	return nil
 }
 
@@ -140,6 +153,26 @@ func TestHandshakeSmoke(t *testing.T) {
 	}
 }
 
+func BenchmarkHandshakeAliceAndBob(b *testing.B) {
+	s, err := newTestState()
+	if err != nil {
+		b.Fatalf("failed to generate benchmark state: %v", err)
+	}
+	defer s.alicePipe.Close()
+	defer s.bobPipe.Close()
+
+	// This benchmarks both sides, with a certain amount of extra overhead in
+	// sanity checks and what not.  Since the replay detection is
+	// probablisic, it can fail without there being anything wrong. c'est la
+	// vie.
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := s.oneIter(); err != nil {
+			b.Fatalf("handshake failed: (maybe false positive) %v", err)
+		}
+	}
+}
+
 func newTestState() (*testState, error) {
 	var err error
 
@@ -147,6 +180,8 @@ func newTestState() (*testState, error) {
 	s.aliceCh, s.bobCh = make(chan error), make(chan error)
 	s.kdfCh = make(chan *SessionKeys, 2)
 	s.alicePipe, s.bobPipe = net.Pipe()
+	s.aliceRw = &countingReadWriter{s.alicePipe, 0, 0}
+	s.bobRw = &countingReadWriter{s.bobPipe, 0, 0}
 
 	s.bobKeypair, err = identity.NewPrivateKey(rand.Reader)
 	if err != nil {
@@ -158,4 +193,31 @@ func newTestState() (*testState, error) {
 	}
 
 	return s, nil
+}
+
+type countingReadWriter struct {
+	impl io.ReadWriter
+
+	bytesWrite uint64
+	bytesRead  uint64
+}
+
+func (rw *countingReadWriter) reset() {
+	rw.bytesWrite, rw.bytesRead = 0, 0
+}
+
+func (rw *countingReadWriter) Read(p []byte) (int, error) {
+	n, err := rw.impl.Read(p)
+	if n != 0 {
+		rw.bytesRead += uint64(n)
+	}
+	return n, err
+}
+
+func (rw *countingReadWriter) Write(p []byte) (int, error) {
+	n, err := rw.impl.Write(p)
+	if n != 0 {
+		rw.bytesWrite += uint64(n)
+	}
+	return n, err
 }
