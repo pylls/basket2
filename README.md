@@ -27,7 +27,7 @@ Dependencies:
  * github.com/dchest/siphash - SipHash-2-4
  * git.schwanenlied.me/yawning/a2filter.git - Active-Active Bloom Filter
  * git.schwanenlied.me/yawning/chacha20.git - (X)ChaCha20
- * git.schwanenlied.me/yawning/newhope.git - newhope
+ * git.schwanenlied.me/yawning/newhope.git - New Hope
 
 Notes:
 
@@ -75,3 +75,4 @@ TODO:
 
  * Define more padding primitives.
 
+ * Define a X448 based handshake variant.
