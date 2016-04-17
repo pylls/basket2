@@ -45,8 +45,10 @@ var (
 	obfsKdfTweak   = []byte("basket2-obfs-v0-kdf-tweak")
 	obfsTransTweak = []byte("basket2-obfs-v0-transcript-tweak")
 
-	// ErrInvalidPoint is the error returned when the obfuscation crypto fails.
-	ErrInvalidPoint = errors.New("obfs: invalid point")
+	// ErrInvalidPoint is the error returned when the handshake/obfuscation
+	// crypto fails due to the X25519 point not being on the curve or it's
+	// twist.
+	ErrInvalidPoint = errors.New("handshake: invalid point")
 
 	// ErrInvalidCmd is the error returned on a invalid obfuscated handshake
 	// payload command.
