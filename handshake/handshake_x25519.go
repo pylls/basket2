@@ -38,8 +38,6 @@ const (
 
 	// XXX: Pad to X448 handshake size...
 	x25519PadNormSize = newhope.SendBSize - (32 + newhope.SendASize)
-
-	maxKeygenAttempts = 8
 )
 
 var (
@@ -102,19 +100,16 @@ func (c *ClientHandshake) handshakeX25519(rw io.ReadWriter, extData []byte, padL
 	return k, respBlob[x25519RespSize:], nil
 }
 
-func (s *ServerHandshake) parseReqX25519(reqBlob []byte) ([]byte, error) {
+func (s *ServerHandshake) parseReqX25519() ([]byte, error) {
 	if s.method != X25519NewHope {
 		panic("handshake: expected X25519")
 	}
 
-	if len(reqBlob) < x25519ReqSize {
+	if len(s.reqBlob) < x25519ReqSize {
 		return nil, ErrInvalidPayload
 	}
 
-	s.nhPublicKey = new(newhope.PublicKeyAlice)
-	copy(s.nhPublicKey.Send[:], reqBlob[x25519ReqNHOffset:])
-
-	return reqBlob[x25519ReqSize:], nil
+	return s.reqBlob[x25519ReqSize:], nil
 }
 
 func (s *ServerHandshake) sendRespX25519(rand io.Reader, rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, error) {
@@ -144,12 +139,14 @@ func (s *ServerHandshake) sendRespX25519(rand io.Reader, rw io.ReadWriter, extDa
 	}
 
 	// NewHope key exchange with the client's public key.
+	var nhPublicKeyAlice newhope.PublicKeyAlice
+	copy(nhPublicKeyAlice.Send[:], s.reqBlob[x25519ReqNHOffset:])
 	h, err := crypto.NewTweakedShake256(rand, newhopeRandTweak)
 	if err != nil {
 		return nil, err
 	}
 	defer h.Reset()
-	nhPublicKey, nhSharedSecret, err := newhope.KeyExchangeBob(h, s.nhPublicKey)
+	nhPublicKey, nhSharedSecret, err := newhope.KeyExchangeBob(h, &nhPublicKeyAlice)
 	if err != nil {
 		return nil, err
 	}
@@ -174,16 +171,14 @@ func newX25519KeyPair(rand io.Reader, publicKey, privateKey *[32]byte) error {
 		return err
 	}
 	defer rh.Reset()
-	for i := 0; i < maxKeygenAttempts; i++ {
-		if _, err := io.ReadFull(rh, privateKey[:]); err != nil {
-			return err
-		}
 
-		curve25519.ScalarBaseMult(publicKey, privateKey)
-		if !crypto.MemIsZero(publicKey[:]) {
-			return nil
-		}
+	if _, err := io.ReadFull(rh, privateKey[:]); err != nil {
+		return err
 	}
 
+	curve25519.ScalarBaseMult(publicKey, privateKey)
+	if !crypto.MemIsZero(publicKey[:]) {
+		return nil
+	}
 	return ErrInvalidPoint
 }

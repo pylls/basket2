@@ -164,8 +164,6 @@ func NewClientHandshake(rand io.Reader, serverPublicKey *identity.PublicKey) (*C
 
 	switch c.method {
 	case X25519NewHope:
-		// The obfuscation key can safely be used as the ephemeral session key,
-		// so there is no separate keygen neccecary.
 	default:
 		return nil, ErrInvalidMethod
 	}
@@ -184,9 +182,8 @@ func NewClientHandshake(rand io.Reader, serverPublicKey *identity.PublicKey) (*C
 type ServerHandshake struct {
 	obfs *serverObfsCtx
 
-	method Method
-
-	nhPublicKey *newhope.PublicKeyAlice
+	method  Method
+	reqBlob []byte
 }
 
 // RecvHandshakeReq receives and validates the client's handshake request and
@@ -206,10 +203,11 @@ func (s *ServerHandshake) RecvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
 		return nil, ErrInvalidPayload
 	}
 	s.method = Method(reqBlob[1])
+	s.reqBlob = reqBlob
 
 	switch s.method {
 	case X25519NewHope:
-		return s.parseReqX25519(reqBlob)
+		return s.parseReqX25519()
 	default:
 		return nil, ErrInvalidMethod
 	}
