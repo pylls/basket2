@@ -45,7 +45,7 @@ Notes:
         available via BridgeDB OR is a default Bridge pre-configured and
         distributed with Tor Browser.
 
-   All other users MUST comply with the AGPL in it's entirety as a general
+ * All other users MUST comply with the AGPL in it's entirety as a general
    rule, though other licensing arrangements may be possible on request.
    I will likely be fairly liberal here, so please contact me if the
    current licensing is unsuitable for your use case.
@@ -53,10 +53,6 @@ Notes:
  * The post-quantum cryptography does not apply to active attackers in
    posession of a quantum computer, and only will protect pre-existing data
    from later decryption.
-
-   Using a PQ signature algorithm such as SPHINCS256 would solve this
-   problem, however the key and signature sizes are still larger than what
-   I feel comfortable with being able to obfsucate.
 
  * Yeah, this uses SHA3 instead of whatever trendy BLAKE variant kids like
    these days.  SHAKE is love, SHAKE is life.
@@ -76,4 +72,3 @@ TODO:
 
  * Define more padding primitives.
 
- * Define a X448 based handshake variant.
