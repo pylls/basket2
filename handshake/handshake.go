@@ -99,6 +99,8 @@ func newSessionKeys(transcriptDigest, xSecret, nhSecret []byte) *SessionKeys {
 
 // ClientHandshake is the client handshake state.
 type ClientHandshake struct {
+	rand io.Reader
+
 	obfs *clientObfsCtx
 
 	method Method
@@ -122,6 +124,8 @@ func (c *ClientHandshake) Handshake(rw io.ReadWriter, extData []byte, padLen int
 	switch c.method {
 	case X25519NewHope:
 		return c.handshakeX25519(rw, extData, padLen)
+	case X448NewHope:
+		return c.handshakeX448(rw, extData, padLen)
 	default:
 		return nil, nil, ErrInvalidMethod
 	}
@@ -147,10 +151,11 @@ func (c *ClientHandshake) Reset() {
 // Note: Due to the rejection sampling in Elligator 2 keypair generation, this
 // should be done offline.  The timing variation only leaks information about
 // the obfuscation method, and does not compromise secrecy or integrity.
-func NewClientHandshake(rand io.Reader, serverPublicKey *identity.PublicKey) (*ClientHandshake, error) {
+func NewClientHandshake(rand io.Reader, method Method, serverPublicKey *identity.PublicKey) (*ClientHandshake, error) {
 	var err error
 	c := new(ClientHandshake)
-	c.method = X25519NewHope // Make this a param later.
+	c.rand = rand
+	c.method = method
 
 	// Generate the NewHope keypair.
 	h, err := crypto.NewTweakedShake256(rand, newhopeRandTweak)
@@ -164,6 +169,7 @@ func NewClientHandshake(rand io.Reader, serverPublicKey *identity.PublicKey) (*C
 
 	switch c.method {
 	case X25519NewHope:
+	case X448NewHope:
 	default:
 		return nil, ErrInvalidMethod
 	}
@@ -180,6 +186,9 @@ func NewClientHandshake(rand io.Reader, serverPublicKey *identity.PublicKey) (*C
 
 // ServerHandshake is the server handshake state.
 type ServerHandshake struct {
+	rand           io.Reader
+	allowedMethods []Method
+
 	obfs *serverObfsCtx
 
 	method  Method
@@ -204,10 +213,15 @@ func (s *ServerHandshake) RecvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
 	}
 	s.method = Method(reqBlob[1])
 	s.reqBlob = reqBlob
+	if !s.isAllowedMethod(s.method) {
+		return nil, ErrInvalidMethod
+	}
 
 	switch s.method {
 	case X25519NewHope:
 		return s.parseReqX25519()
+	case X448NewHope:
+		return s.parseReqX448()
 	default:
 		return nil, ErrInvalidMethod
 	}
@@ -218,12 +232,14 @@ func (s *ServerHandshake) RecvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
 // extData is encrypted/authenticated without PFS.  Callers are responsible
 // for setting timeouts as appropriate.  Upon return, Reset will be called
 // automatically.
-func (s *ServerHandshake) SendHandshakeResp(rand io.Reader, rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, error) {
+func (s *ServerHandshake) SendHandshakeResp(rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, error) {
 	defer s.Reset()
 
 	switch s.method {
 	case X25519NewHope:
-		return s.sendRespX25519(rand, rw, extData, padLen)
+		return s.sendRespX25519(rw, extData, padLen)
+	case X448NewHope:
+		return s.sendRespX448(rw, extData, padLen)
 	default:
 		return nil, ErrInvalidMethod
 	}
@@ -238,11 +254,22 @@ func (s *ServerHandshake) Reset() {
 	}
 }
 
+func (s *ServerHandshake) isAllowedMethod(method Method) bool {
+	for _, v := range s.allowedMethods {
+		if v == method {
+			return true
+		}
+	}
+	return false
+}
+
 // NewServerHandshake creates a new ServerHandshake instance suitable for a
 // single handshake to the provided peer identified by a private key.
-func NewServerHandshake(replay *a2filter.A2Filter, serverPrivateKey *identity.PrivateKey) (*ServerHandshake, error) {
+func NewServerHandshake(rand io.Reader, methods []Method, replay *a2filter.A2Filter, serverPrivateKey *identity.PrivateKey) (*ServerHandshake, error) {
 	var err error
 	s := new(ServerHandshake)
+	s.rand = rand
+	s.allowedMethods = methods
 
 	// Generate the obfuscation state.  The actual handshake response keypair
 	// generation is handled when the handshake actually occurs.

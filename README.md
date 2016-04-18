@@ -28,6 +28,7 @@ Dependencies:
  * git.schwanenlied.me/yawning/a2filter.git - Active-Active Bloom Filter
  * git.schwanenlied.me/yawning/chacha20.git - (X)ChaCha20
  * git.schwanenlied.me/yawning/newhope.git - New Hope
+ * git.schwanenlied.me/yawning/x448.git - X448
 
 Notes:
 

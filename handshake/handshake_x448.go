@@ -1,4 +1,4 @@
-// handshake_x25519.go - X25519/NewHope key exchange.
+// handshake_x448.go - X448/NewHope key exchange.
 // Copyright (C) 2016 Yawning Angel.
 //
 // This program is free software: you can redistribute it and/or modify
@@ -21,45 +21,49 @@ import (
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
 	"git.schwanenlied.me/yawning/newhope.git"
-
-	"golang.org/x/crypto/curve25519"
+	"git.schwanenlied.me/yawning/x448.git"
 )
 
 const (
-	// X25519NewHope is the X25519/NewHope based handshake method.
-	X25519NewHope Method = 0
+	// X448NewHope is the X448/NewHope based handshake method.
+	X448NewHope Method = 1
 
-	x25519ReqSize  = 1 + 1 + newhope.SendASize
-	x25519RespSize = 1 + 1 + 32 + newhope.SendBSize
+	x448ReqSize  = 1 + 1 + 56 + newhope.SendASize
+	x448RespSize = 1 + 1 + 56 + newhope.SendBSize
 
-	x25519RespXOffset  = 2
-	x25519RespNHOffset = 2 + 32
-	x25519ReqNHOffset  = 2
+	x448XOffset  = 2
+	x448NHOffset = 2 + 56
 
-	// Pad to X448 handshake size...
-	x25519ReqPadNormSize  = 32 + newhope.SendBSize - ((64 - 24) + newhope.SendASize)
-	x25519RespPadNormSize = 24
+	x448PadNormSize = newhope.SendBSize - (64 + newhope.SendASize)
 )
 
 var (
-	x25519RandTewak = []byte("basket2-x25519-tweak")
+	x448RandTweak = []byte("basket2-x448-tweak")
 )
 
-func (c *ClientHandshake) handshakeX25519(rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, []byte, error) {
-	if c.method != X25519NewHope {
-		panic("handshake: expected X25519")
+func (c *ClientHandshake) handshakeX448(rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, []byte, error) {
+	if c.method != X448NewHope {
+		panic("handshake: expected X448")
+	}
+
+	// Generate the ephemeral X448 keypair.
+	var xPublicKey, xPrivateKey [56]byte
+	defer crypto.Memwipe(xPrivateKey[:])
+	if err := newX448KeyPair(c.rand, &xPublicKey, &xPrivateKey); err != nil {
+		return nil, nil, err
 	}
 
 	// Craft the handshake request blob.
-	reqBlob := make([]byte, 0, x25519ReqSize+len(extData))
+	reqBlob := make([]byte, 0, x448ReqSize+len(extData))
 	reqBlob = append(reqBlob, HandshakeVersion)
 	reqBlob = append(reqBlob, byte(c.method))
+	reqBlob = append(reqBlob, xPublicKey[:]...)
 	reqBlob = append(reqBlob, c.nhPublicKey.Send[:]...)
 	reqBlob = append(reqBlob, extData...)
 
-	// Normalize the pre-padding request length with the X448 pre-padding
+	// Normalize the pre-padding request length with the pre-padding
 	// response length.
-	padLen += x25519ReqPadNormSize
+	padLen += x448PadNormSize
 
 	// Obfuscate and transmit the blob, receive and deobfuscate the response.
 	respBlob, err := c.obfs.handshake(rw, reqBlob, padLen)
@@ -68,28 +72,27 @@ func (c *ClientHandshake) handshakeX25519(rw io.ReadWriter, extData []byte, padL
 	}
 
 	// Parse the response, complete the handshake.
-	if len(respBlob) < x25519RespSize {
+	if len(respBlob) < x448RespSize {
 		return nil, nil, ErrInvalidPayload
 	}
 	if respBlob[0] != HandshakeVersion {
 		return nil, nil, ErrInvalidPayload
 	}
-	if respBlob[1] != byte(X25519NewHope) {
+	if respBlob[1] != byte(X448NewHope) {
 		return nil, nil, ErrInvalidMethod
 	}
 
-	// X25519 key exchange with the server's ephemeral key.
-	var xPublicKey, xSharedSecret [32]byte
+	// X448 key exchange with the server's ephemeral key.
+	var xSharedSecret [56]byte
 	defer crypto.Memwipe(xSharedSecret[:])
-	copy(xPublicKey[:], respBlob[x25519RespXOffset:])
-	curve25519.ScalarMult(&xSharedSecret, &c.obfs.privKey, &xPublicKey)
-	if crypto.MemIsZero(xSharedSecret[:]) {
+	copy(xPublicKey[:], respBlob[x448XOffset:])
+	if x448.ScalarMult(&xSharedSecret, &xPrivateKey, &xPublicKey) != 0 {
 		return nil, nil, ErrInvalidPoint
 	}
 
 	// NewHope key exchange with the server's public key.
 	var nhPublicKey newhope.PublicKeyBob
-	copy(nhPublicKey.Send[:], respBlob[x25519RespNHOffset:])
+	copy(nhPublicKey.Send[:], respBlob[x448NHOffset:])
 	nhSharedSecret, err := newhope.KeyExchangeAlice(&nhPublicKey, c.nhPrivateKey)
 	if err != nil {
 		return nil, nil, err
@@ -98,50 +101,50 @@ func (c *ClientHandshake) handshakeX25519(rw io.ReadWriter, extData []byte, padL
 
 	k := newSessionKeys(c.obfs.transcriptDigest[:], xSharedSecret[:], nhSharedSecret)
 
-	return k, respBlob[x25519RespSize:], nil
+	return k, respBlob[x448RespSize:], nil
 }
 
-func (s *ServerHandshake) parseReqX25519() ([]byte, error) {
-	if s.method != X25519NewHope {
-		panic("handshake: expected X25519")
+func (s *ServerHandshake) parseReqX448() ([]byte, error) {
+	if s.method != X448NewHope {
+		panic("handshake: expected X448")
 	}
 
-	if len(s.reqBlob) < x25519ReqSize {
+	if len(s.reqBlob) < x448ReqSize {
 		return nil, ErrInvalidPayload
 	}
 
-	return s.reqBlob[x25519ReqSize:], nil
+	return s.reqBlob[x448ReqSize:], nil
 }
 
-func (s *ServerHandshake) sendRespX25519(rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, error) {
-	if s.method != X25519NewHope {
-		panic("handshake: expected X25519")
+func (s *ServerHandshake) sendRespX448(rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, error) {
+	if s.method != X448NewHope {
+		panic("handshake: expected X448")
 	}
 
 	// Craft the static portions of the response body, which will be appended
 	// to as the handshake proceeds.
-	respBlob := make([]byte, 0, x25519RespSize+len(extData))
+	respBlob := make([]byte, 0, x448RespSize+len(extData))
 	respBlob = append(respBlob, HandshakeVersion)
 	respBlob = append(respBlob, byte(s.method))
 
-	// Generate a new X25519 keypair.
-	var xPublicKey, xPrivateKey, xSharedSecret [32]byte
+	// Generate a new X448 keypair.
+	var xPublicKey, xPrivateKey, xSharedSecret [56]byte
 	defer crypto.Memwipe(xPrivateKey[:])
 	defer crypto.Memwipe(xSharedSecret[:])
-	if err := newX25519KeyPair(s.rand, &xPublicKey, &xPrivateKey); err != nil {
+	if err := newX448KeyPair(s.rand, &xPublicKey, &xPrivateKey); err != nil {
 		return nil, err
 	}
 	respBlob = append(respBlob, xPublicKey[:]...)
+	copy(xPublicKey[:], s.reqBlob[x448XOffset:])
 
-	// X25519 key exchange with both ephemeral keys.
-	curve25519.ScalarMult(&xSharedSecret, &xPrivateKey, &s.obfs.clientPublicKey)
-	if crypto.MemIsZero(xSharedSecret[:]) {
+	// X448 key exchange with both ephemeral keys.
+	if x448.ScalarMult(&xSharedSecret, &xPrivateKey, &xPublicKey) != 0 {
 		return nil, ErrInvalidPoint
 	}
 
 	// NewHope key exchange with the client's public key.
 	var nhPublicKeyAlice newhope.PublicKeyAlice
-	copy(nhPublicKeyAlice.Send[:], s.reqBlob[x25519ReqNHOffset:])
+	copy(nhPublicKeyAlice.Send[:], s.reqBlob[x448NHOffset:])
 	h, err := crypto.NewTweakedShake256(s.rand, newhopeRandTweak)
 	if err != nil {
 		return nil, err
@@ -154,12 +157,8 @@ func (s *ServerHandshake) sendRespX25519(rw io.ReadWriter, extData []byte, padLe
 	defer crypto.Memwipe(nhSharedSecret)
 	respBlob = append(respBlob, nhPublicKey.Send[:]...)
 
-	// Append the extData.
+	// Append the extData and dispatch the response.
 	respBlob = append(respBlob, extData...)
-
-	// Normalize the pre-padding response length with the X448 pre-padding
-	// response length.
-	padLen += x25519RespPadNormSize
 	if err := s.obfs.sendHandshakeResp(rw, respBlob, padLen); err != nil {
 		return nil, err
 	}
@@ -170,8 +169,8 @@ func (s *ServerHandshake) sendRespX25519(rw io.ReadWriter, extData []byte, padLe
 	return k, nil
 }
 
-func newX25519KeyPair(rand io.Reader, publicKey, privateKey *[32]byte) error {
-	rh, err := crypto.NewTweakedShake256(rand, x25519RandTewak)
+func newX448KeyPair(rand io.Reader, publicKey, privateKey *[56]byte) error {
+	rh, err := crypto.NewTweakedShake256(rand, x448RandTweak)
 	if err != nil {
 		return err
 	}
@@ -180,10 +179,9 @@ func newX25519KeyPair(rand io.Reader, publicKey, privateKey *[32]byte) error {
 	if _, err := io.ReadFull(rh, privateKey[:]); err != nil {
 		return err
 	}
-
-	curve25519.ScalarBaseMult(publicKey, privateKey)
-	if !crypto.MemIsZero(publicKey[:]) {
-		return nil
+	if x448.ScalarBaseMult(publicKey, privateKey) != 0 {
+		return ErrInvalidPoint
 	}
-	return ErrInvalidPoint
+
+	return nil
 }

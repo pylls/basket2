@@ -34,10 +34,13 @@ var (
 	// use John Stuart Mill.  I think they both had a point.
 	clientExtData = []byte("The peculiar evil of silencing the expression of an opinion is, that it is robbing the human race; posterity as well as the existing generation; those who dissent from the opinion, still more than those who hold it.")
 	serverExtData = []byte("If the opinion is right, they are deprived of the opportunity of exchanging error for truth: if wrong, they lose, what is almost as great a benefit, the clearer perception and livelier impression of truth, produced by its collision with error.")
+
+	methods = []Method{X25519NewHope, X448NewHope}
 )
 
 type testState struct {
 	sync.WaitGroup
+	method Method
 
 	bobKeypair *identity.PrivateKey
 	replay     *a2filter.A2Filter
@@ -51,7 +54,7 @@ type testState struct {
 func (s *testState) aliceRoutine() {
 	defer s.Done()
 
-	hs, err := NewClientHandshake(rand.Reader, &s.bobKeypair.PublicKey)
+	hs, err := NewClientHandshake(rand.Reader, s.method, &s.bobKeypair.PublicKey)
 	if err != nil {
 		s.aliceCh <- err
 		return
@@ -74,7 +77,7 @@ func (s *testState) aliceRoutine() {
 func (s *testState) bobRoutine() {
 	defer s.Done()
 
-	hs, err := NewServerHandshake(s.replay, s.bobKeypair)
+	hs, err := NewServerHandshake(rand.Reader, methods, s.replay, s.bobKeypair)
 	if err != nil {
 		s.bobCh <- err
 		return
@@ -91,9 +94,10 @@ func (s *testState) bobRoutine() {
 		return
 	}
 
-	k, err := hs.SendHandshakeResp(rand.Reader, s.bobRw, serverExtData, 0)
+	k, err := hs.SendHandshakeResp(s.bobRw, serverExtData, 0)
 	if err != nil {
 		s.bobCh <- err
+		return
 	}
 
 	s.kdfCh <- k
@@ -148,18 +152,23 @@ func TestHandshakeSmoke(t *testing.T) {
 	defer s.alicePipe.Close()
 	defer s.bobPipe.Close()
 
-	if err := s.oneIter(); err != nil {
-		t.Fatalf("handshake failed: %v", err)
+	for _, v := range methods {
+		s.method = v
+		if err := s.oneIter(); err != nil {
+			t.Fatalf("handshake failed: %v", err)
+		}
 	}
 }
 
-func BenchmarkHandshakeAliceAndBob(b *testing.B) {
+func benchmarkHandshake(b *testing.B, m Method) {
 	s, err := newTestState()
 	if err != nil {
 		b.Fatalf("failed to generate benchmark state: %v", err)
 	}
 	defer s.alicePipe.Close()
 	defer s.bobPipe.Close()
+
+	s.method = m
 
 	// This benchmarks both sides, with a certain amount of extra overhead in
 	// sanity checks and what not.  Since the replay detection is
@@ -171,6 +180,14 @@ func BenchmarkHandshakeAliceAndBob(b *testing.B) {
 			b.Fatalf("handshake failed: (maybe false positive) %v", err)
 		}
 	}
+}
+
+func BenchmarkHandshakeAliceAndBobX25519(b *testing.B) {
+	benchmarkHandshake(b, X25519NewHope)
+}
+
+func BenchmarkHandshakeAliceAndBobX448(b *testing.B) {
+	benchmarkHandshake(b, X448NewHope)
 }
 
 func newTestState() (*testState, error) {
