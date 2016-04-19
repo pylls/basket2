@@ -34,7 +34,7 @@ const (
 	x448XOffset  = 2
 	x448NHOffset = 2 + 56
 
-	x448PadNormSize = newhope.SendBSize - (64 + newhope.SendASize)
+	x448PadNormSize = newhope.SendBSize - ((obfsClientOverhead - obfsServerOverhead) + newhope.SendASize)
 )
 
 var (

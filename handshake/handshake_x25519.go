@@ -37,8 +37,8 @@ const (
 	x25519ReqNHOffset  = 2
 
 	// Pad to X448 handshake size...
-	x25519ReqPadNormSize  = 32 + newhope.SendBSize - ((64 - 24) + newhope.SendASize)
-	x25519RespPadNormSize = 24
+	x25519ReqPadNormSize  = (x448ReqSize - x25519ReqSize) + x448PadNormSize
+	x25519RespPadNormSize = x448RespSize - x25519RespSize
 )
 
 var (
