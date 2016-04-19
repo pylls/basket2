@@ -87,11 +87,7 @@ func (k *PrivateKey) Reset() {
 
 func (k *PrivateKey) toCurve25519() error {
 	extra25519.PrivateKeyToCurve25519(&k.KEXPrivateKey, k.DSAPrivateKey)
-	extra25519.PublicKeyToCurve25519(&k.KEXPublicKey, k.DSAPublicKey)
-	if !crypto.MemIsZero(k.KEXPublicKey[:]) {
-		return nil
-	}
-	return ErrInvalidKey
+	return k.PublicKey.toCurve25519()
 }
 
 // NewPrivateKey generates an Ed25519/X25519 keypair using the random source
@@ -150,4 +146,28 @@ func finalizePrivateKey(k *PrivateKey) {
 type PublicKey struct {
 	DSAPublicKey *[PublicKeySize]byte
 	KEXPublicKey [PublicKeySize]byte
+}
+
+func (k *PublicKey) toCurve25519() error {
+	extra25519.PublicKeyToCurve25519(&k.KEXPublicKey, k.DSAPublicKey)
+	if !crypto.MemIsZero(k.KEXPublicKey[:]) {
+		return nil
+	}
+	return ErrInvalidKey
+}
+
+// PublicKeyFromBytes deserializes a public key.
+func PublicKeyFromBytes(b []byte) (*PublicKey, error) {
+	if len(b) != PublicKeySize {
+		return nil, ErrInvalidKeySize
+	}
+
+	k := new(PublicKey)
+	k.DSAPublicKey = new([PublicKeySize]byte)
+	copy(k.DSAPublicKey[:], b)
+	if err := k.toCurve25519(); err != nil {
+		return nil, err
+	}
+
+	return k, nil
 }

@@ -47,4 +47,15 @@ func TestIdentity(t *testing.T) {
 	if !bytes.Equal(pk0.KEXPublicKey[:], pk1.KEXPublicKey[:]) {
 		t.Fatalf("KEX public key mismatch")
 	}
+
+	pk2, err := PublicKeyFromBytes(pk0.DSAPublicKey[:])
+	if err != nil {
+		t.Fatalf("failed to deserialize identity public key: %v", err)
+	}
+	if !bytes.Equal(pk0.DSAPublicKey[:], pk2.DSAPublicKey[:]) {
+		t.Fatalf("DSA public key2 mismatch")
+	}
+	if !bytes.Equal(pk0.KEXPublicKey[:], pk2.KEXPublicKey[:]) {
+		t.Fatalf("KEX public key2 mismatch")
+	}
 }
