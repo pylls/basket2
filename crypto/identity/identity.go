@@ -1,5 +1,5 @@
 // identity.go - Identity key routines.
-// Copyright (C) 2015  Yawning Angel.
+// Copyright (C) 2015-2016  Yawning Angel.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as
@@ -19,6 +19,7 @@
 package identity
 
 import (
+	"errors"
 	"io"
 	"runtime"
 
@@ -45,7 +46,17 @@ const (
 	maxKeygenAttempts = 8
 )
 
-var identityRandTweak = []byte("basket2-identity-tweak")
+var (
+	// ErrInvalidKeySize is the error returned when deserialization failes due
+	// to an invalid length buffer.
+	ErrInvalidKeySize = errors.New("identity: invalid key size")
+
+	// ErrInvalidKey is the error returned when deserialization fails due to
+	// one of the keys consisting of invalid points.
+	ErrInvalidKey = errors.New("identity: deserialized key is invalid")
+
+	identityRandTweak = []byte("basket2-identity-tweak")
+)
 
 // PrivateKey is a EdDSA private key and it's X25519 counterpart.
 type PrivateKey struct {
@@ -74,6 +85,15 @@ func (k *PrivateKey) Reset() {
 	crypto.Memwipe(k.KEXPrivateKey[:])
 }
 
+func (k *PrivateKey) toCurve25519() error {
+	extra25519.PrivateKeyToCurve25519(&k.KEXPrivateKey, k.DSAPrivateKey)
+	extra25519.PublicKeyToCurve25519(&k.KEXPublicKey, k.DSAPublicKey)
+	if !crypto.MemIsZero(k.KEXPublicKey[:]) {
+		return nil
+	}
+	return ErrInvalidKey
+}
+
 // NewPrivateKey generates an Ed25519/X25519 keypair using the random source
 // rand (use crypto/rand.Reader).
 func NewPrivateKey(rand io.Reader) (*PrivateKey, error) {
@@ -94,9 +114,7 @@ func NewPrivateKey(rand io.Reader) (*PrivateKey, error) {
 		}
 
 		// Generate the X25519 keypair.
-		extra25519.PrivateKeyToCurve25519(&k.KEXPrivateKey, k.DSAPrivateKey)
-		extra25519.PublicKeyToCurve25519(&k.KEXPublicKey, k.DSAPublicKey)
-		if !crypto.MemIsZero(k.KEXPublicKey[:]) {
+		if err = k.toCurve25519(); err == nil {
 			return k, nil
 		}
 	}
@@ -104,6 +122,24 @@ func NewPrivateKey(rand io.Reader) (*PrivateKey, error) {
 	// This should essentially never happen, even with a relatively low
 	// retry count.
 	panic("crypto/identity: failed to generate keypair, broken rng?")
+}
+
+// PrivateKeyFromBytes deserializes a private key.
+func PrivateKeyFromBytes(b []byte) (*PrivateKey, error) {
+	if len(b) != PrivateKeySize {
+		return nil, ErrInvalidKeySize
+	}
+
+	k := new(PrivateKey)
+	k.DSAPrivateKey = new([PrivateKeySize]byte)
+	copy(k.DSAPrivateKey[:], b)
+	k.PublicKey.DSAPublicKey = new([PublicKeySize]byte)
+	copy(k.PublicKey.DSAPublicKey[:], k.DSAPrivateKey[32:])
+	if err := k.toCurve25519(); err != nil {
+		k.Reset()
+		return nil, err
+	}
+	return k, nil
 }
 
 func finalizePrivateKey(k *PrivateKey) {
