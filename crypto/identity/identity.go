@@ -75,6 +75,11 @@ func (k *PrivateKey) ScalarMult(secret *[SharedSecretSize]byte, publicKey *[Publ
 	return ok
 }
 
+// Sign signs a message and returns a signature.
+func (k *PrivateKey) Sign(message []byte) *[SignatureSize]byte {
+	return ed25519.Sign(k.DSAPrivateKey, message)
+}
+
 // Reset sanitizes private values from the PrivateKey such that they no longer
 // appear in memory.
 func (k *PrivateKey) Reset() {
@@ -146,6 +151,11 @@ func finalizePrivateKey(k *PrivateKey) {
 type PublicKey struct {
 	DSAPublicKey *[PublicKeySize]byte
 	KEXPublicKey [PublicKeySize]byte
+}
+
+// Verify returns true iff sig is a valid signature of message.
+func (k *PublicKey) Verify(message []byte, sig *[SignatureSize]byte) bool {
+	return ed25519.Verify(k.DSAPublicKey, message, sig)
 }
 
 func (k *PublicKey) toCurve25519() error {
