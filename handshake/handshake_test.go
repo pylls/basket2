@@ -51,8 +51,15 @@ type testState struct {
 	kdfCh              chan *SessionKeys
 }
 
+func (s *testState) initPipes() {
+	s.alicePipe, s.bobPipe = net.Pipe()
+	s.aliceRw = &countingReadWriter{s.alicePipe, 0, 0}
+	s.bobRw = &countingReadWriter{s.bobPipe, 0, 0}
+}
+
 func (s *testState) aliceRoutine() {
 	defer s.Done()
+	defer s.alicePipe.Close()
 
 	hs, err := NewClientHandshake(rand.Reader, s.method, &s.bobKeypair.PublicKey)
 	if err != nil {
@@ -76,6 +83,7 @@ func (s *testState) aliceRoutine() {
 
 func (s *testState) bobRoutine() {
 	defer s.Done()
+	defer s.bobPipe.Close()
 
 	hs, err := NewServerHandshake(rand.Reader, methods, s.replay, s.bobKeypair)
 	if err != nil {
@@ -104,6 +112,7 @@ func (s *testState) bobRoutine() {
 }
 
 func (s *testState) oneIter() error {
+	s.initPipes()
 	s.Add(2)
 	go s.aliceRoutine()
 	go s.bobRoutine()
@@ -137,9 +146,12 @@ func (s *testState) oneIter() error {
 	if s.aliceRw.bytesWrite+lenDiff != s.bobRw.bytesWrite {
 		return fmt.Errorf("bytes written count mismatch")
 	}
-
-	s.aliceRw.reset()
-	s.bobRw.reset()
+	if int(s.aliceRw.bytesWrite)-len(clientExtData) != MessageSize {
+		return fmt.Errorf("client bytes mismatch: %v", s.aliceRw.bytesWrite)
+	}
+	if int(s.bobRw.bytesWrite)-len(serverExtData) != MessageSize {
+		return fmt.Errorf("server bytes mismatch: %v", s.bobRw.bytesWrite)
+	}
 
 	return nil
 }
@@ -149,8 +161,6 @@ func TestHandshakeSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to generate test state: %v", err)
 	}
-	defer s.alicePipe.Close()
-	defer s.bobPipe.Close()
 
 	for _, v := range methods {
 		s.method = v
@@ -165,9 +175,6 @@ func benchmarkHandshake(b *testing.B, m Method) {
 	if err != nil {
 		b.Fatalf("failed to generate benchmark state: %v", err)
 	}
-	defer s.alicePipe.Close()
-	defer s.bobPipe.Close()
-
 	s.method = m
 
 	// This benchmarks both sides, with a certain amount of extra overhead in
@@ -196,9 +203,6 @@ func newTestState() (*testState, error) {
 	s := new(testState)
 	s.aliceCh, s.bobCh = make(chan error), make(chan error)
 	s.kdfCh = make(chan *SessionKeys, 2)
-	s.alicePipe, s.bobPipe = net.Pipe()
-	s.aliceRw = &countingReadWriter{s.alicePipe, 0, 0}
-	s.bobRw = &countingReadWriter{s.bobPipe, 0, 0}
 
 	s.bobKeypair, err = identity.NewPrivateKey(rand.Reader)
 	if err != nil {

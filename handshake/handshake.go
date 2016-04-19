@@ -38,6 +38,10 @@ const (
 	// HandshakeVersion is the current handshake version.
 	HandshakeVersion = 0
 
+	// MessageSize is the length that all handshake messages get padded to,
+	// without including user extData or padding (2146 bytes).
+	MessageSize = x448RespSize + obfsServerOverhead
+
 	minReqSize = 1 + 1
 
 	replayDefaultSize = 22      // 4 MiB (2^22 bytes)
