@@ -25,6 +25,7 @@ import (
 	"git.schwanenlied.me/yawning/a2filter.git"
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
+	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
 	"git.schwanenlied.me/yawning/newhope.git"
 
 	"golang.org/x/crypto/sha3"
@@ -287,5 +288,5 @@ func NewServerHandshake(rand io.Reader, methods []Method, replay *a2filter.A2Fil
 
 // NewReplay creates a new replay filter suitable for most server endpoints.
 func NewReplay() (*a2filter.A2Filter, error) {
-	return a2filter.New(replayDefaultSize, replayDefaultRate)
+	return a2filter.New(rand.Reader, replayDefaultSize, replayDefaultRate)
 }
