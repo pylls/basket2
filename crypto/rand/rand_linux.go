@@ -17,9 +17,13 @@
 package rand
 
 import (
+	"bytes"
 	"io"
+	"io/ioutil"
 	"runtime"
+	"strconv"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
@@ -104,7 +108,33 @@ func (r *nonShitRandReader) Read(b []byte) (int, error) {
 	}
 }
 
-func init() {
+func waitOnUrandomSanity() error {
+	for {
+		// Use the /proc interface to query the entropy estimate.
+		buf, err := ioutil.ReadFile("/proc/sys/kernel/random/entropy_avail")
+		if err != nil {
+			return err
+		}
+		entropy, err := strconv.ParseInt(string(bytes.TrimSpace(buf)), 10, 0)
+		if err != nil {
+			return err
+		}
+
+		// The kernel considers an entropy pool initialized if it ever
+		// exceeds 128 bits of entropy.  Since we can't tell if this has
+		// happened in the past for the nonblocking pool, wait till we
+		// see the threshold has been exceeded.
+		if entropy > 128 {
+			return nil
+		}
+
+		// Don't busy wait.
+		time.Sleep(1 * time.Second)
+	}
+}
+
+// Detect support for getrandom(2).
+func initGetrandom() error {
 	switch runtime.GOARCH {
 	case "amd64":
 		getrandomTrap = 318
@@ -115,7 +145,8 @@ func init() {
 	case "arm64":
 		getrandomTrap = 278
 	default:
-		panic("rand: (BUG) getrandom(2) syscall number unknown for this arch")
+		// Your platform is the most special snowflake of them all.
+		return syscall.ENOSYS
 	}
 
 	var err error
@@ -124,18 +155,29 @@ func init() {
 		err = getentropy(tmp[:])
 		switch err {
 		case nil:
-			// getrandom(2) appears to work, and is initialized.
-			usingImprovedSyscallEntropy = true
-			Reader = &nonShitRandReader{}
-			return
+			return nil
 		case syscall.EINTR:
 			// Interrupted by a signal handler while waiting for the entropy
 			// pool to initialize, try again.
 		default:
-			// Likely ENOSYS, we could try querying proc or issuing a
-			// RNDGETENTCNT ioctl to see if the system entropy pool is
-			// initialized, but really, fuck Linux < 3.17.
-			panic("rand: getrandom(2) failed, ENOSYS?")
+			return err
+		}
+	}
+}
+
+func init() {
+	if err := initGetrandom(); err == nil {
+		// getrandom(2) appears to work, and is initialized.
+		usingImprovedSyscallEntropy = true
+		Reader = &nonShitRandReader{}
+	} else {
+		// The system is likely older than Linux 3.17, which while
+		// prehistoric, is still used on things.
+		//
+		// Wait till the system entropy pool is sufficiently initialized,
+		// such that crypto/rand.Reader returns quality results.
+		if err = waitOnUrandomSanity(); err != nil {
+			panic("rand: failed to get a sane /dev/urandom: " + err.Error())
 		}
 	}
 }
