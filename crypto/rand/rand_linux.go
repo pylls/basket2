@@ -112,9 +112,10 @@ func init() {
 		getrandomTrap = 355
 	case "arm":
 		getrandomTrap = 384
+	case "arm64":
+		getrandomTrap = 278
 	default:
-		// Sucks to be you.
-		return
+		panic("rand: (BUG) getrandom(2) syscall number unknown for this arch")
 	}
 
 	var err error
@@ -131,8 +132,10 @@ func init() {
 			// Interrupted by a signal handler while waiting for the entropy
 			// pool to initialize, try again.
 		default:
-			// Proably ENOSYS, sucks to be you.
-			return
+			// Likely ENOSYS, we could try querying proc or issuing a
+			// RNDGETENTCNT ioctl to see if the system entropy pool is
+			// initialized, but really, fuck Linux < 3.17.
+			panic("rand: getrandom(2) failed, ENOSYS?")
 		}
 	}
 }
