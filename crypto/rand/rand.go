@@ -31,8 +31,12 @@ import (
 	"github.com/dchest/siphash"
 )
 
-// Reader is a conveninece alias for crypto/rand.Reader.
-var Reader = csrand.Reader
+var (
+	usingImprovedSyscallEntropy = false
+
+	// Reader is a conveninece alias for crypto/rand.Reader.
+	Reader = csrand.Reader
+)
 
 type sipSource struct {
 	sync.Mutex
