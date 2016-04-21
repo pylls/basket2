@@ -27,7 +27,7 @@ import (
 
 const (
 	// X25519NewHope is the X25519/NewHope based handshake method.
-	X25519NewHope Method = 0
+	X25519NewHope KEXMethod = 0
 
 	x25519ReqSize  = 1 + 1 + newhope.SendASize
 	x25519RespSize = 1 + 1 + 32 + newhope.SendBSize
@@ -46,14 +46,14 @@ var (
 )
 
 func (c *ClientHandshake) handshakeX25519(rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, []byte, error) {
-	if c.method != X25519NewHope {
+	if c.kexMethod != X25519NewHope {
 		panic("handshake: expected X25519")
 	}
 
 	// Craft the handshake request blob.
 	reqBlob := make([]byte, 0, x25519ReqSize+len(extData))
 	reqBlob = append(reqBlob, HandshakeVersion)
-	reqBlob = append(reqBlob, byte(c.method))
+	reqBlob = append(reqBlob, byte(c.kexMethod))
 	reqBlob = append(reqBlob, c.nhPublicKey.Send[:]...)
 	reqBlob = append(reqBlob, extData...)
 
@@ -75,7 +75,7 @@ func (c *ClientHandshake) handshakeX25519(rw io.ReadWriter, extData []byte, padL
 		return nil, nil, ErrInvalidPayload
 	}
 	if respBlob[1] != byte(X25519NewHope) {
-		return nil, nil, ErrInvalidMethod
+		return nil, nil, ErrInvalidKEXMethod
 	}
 
 	// X25519 key exchange with the server's ephemeral key.
@@ -102,7 +102,7 @@ func (c *ClientHandshake) handshakeX25519(rw io.ReadWriter, extData []byte, padL
 }
 
 func (s *ServerHandshake) parseReqX25519() ([]byte, error) {
-	if s.method != X25519NewHope {
+	if s.kexMethod != X25519NewHope {
 		panic("handshake: expected X25519")
 	}
 
@@ -114,7 +114,7 @@ func (s *ServerHandshake) parseReqX25519() ([]byte, error) {
 }
 
 func (s *ServerHandshake) sendRespX25519(rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, error) {
-	if s.method != X25519NewHope {
+	if s.kexMethod != X25519NewHope {
 		panic("handshake: expected X25519")
 	}
 
@@ -122,7 +122,7 @@ func (s *ServerHandshake) sendRespX25519(rw io.ReadWriter, extData []byte, padLe
 	// to as the handshake proceeds.
 	respBlob := make([]byte, 0, x25519RespSize+len(extData))
 	respBlob = append(respBlob, HandshakeVersion)
-	respBlob = append(respBlob, byte(s.method))
+	respBlob = append(respBlob, byte(s.kexMethod))
 
 	// Generate a new X25519 keypair.
 	var xPublicKey, xPrivateKey, xSharedSecret [32]byte

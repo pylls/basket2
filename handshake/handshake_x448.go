@@ -26,7 +26,7 @@ import (
 
 const (
 	// X448NewHope is the X448/NewHope based handshake method.
-	X448NewHope Method = 1
+	X448NewHope KEXMethod = 1
 
 	x448ReqSize  = 1 + 1 + 56 + newhope.SendASize
 	x448RespSize = 1 + 1 + 56 + newhope.SendBSize
@@ -42,7 +42,7 @@ var (
 )
 
 func (c *ClientHandshake) handshakeX448(rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, []byte, error) {
-	if c.method != X448NewHope {
+	if c.kexMethod != X448NewHope {
 		panic("handshake: expected X448")
 	}
 
@@ -56,7 +56,7 @@ func (c *ClientHandshake) handshakeX448(rw io.ReadWriter, extData []byte, padLen
 	// Craft the handshake request blob.
 	reqBlob := make([]byte, 0, x448ReqSize+len(extData))
 	reqBlob = append(reqBlob, HandshakeVersion)
-	reqBlob = append(reqBlob, byte(c.method))
+	reqBlob = append(reqBlob, byte(c.kexMethod))
 	reqBlob = append(reqBlob, xPublicKey[:]...)
 	reqBlob = append(reqBlob, c.nhPublicKey.Send[:]...)
 	reqBlob = append(reqBlob, extData...)
@@ -79,7 +79,7 @@ func (c *ClientHandshake) handshakeX448(rw io.ReadWriter, extData []byte, padLen
 		return nil, nil, ErrInvalidPayload
 	}
 	if respBlob[1] != byte(X448NewHope) {
-		return nil, nil, ErrInvalidMethod
+		return nil, nil, ErrInvalidKEXMethod
 	}
 
 	// X448 key exchange with the server's ephemeral key.
@@ -105,7 +105,7 @@ func (c *ClientHandshake) handshakeX448(rw io.ReadWriter, extData []byte, padLen
 }
 
 func (s *ServerHandshake) parseReqX448() ([]byte, error) {
-	if s.method != X448NewHope {
+	if s.kexMethod != X448NewHope {
 		panic("handshake: expected X448")
 	}
 
@@ -117,7 +117,7 @@ func (s *ServerHandshake) parseReqX448() ([]byte, error) {
 }
 
 func (s *ServerHandshake) sendRespX448(rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, error) {
-	if s.method != X448NewHope {
+	if s.kexMethod != X448NewHope {
 		panic("handshake: expected X448")
 	}
 
@@ -125,7 +125,7 @@ func (s *ServerHandshake) sendRespX448(rw io.ReadWriter, extData []byte, padLen 
 	// to as the handshake proceeds.
 	respBlob := make([]byte, 0, x448RespSize+len(extData))
 	respBlob = append(respBlob, HandshakeVersion)
-	respBlob = append(respBlob, byte(s.method))
+	respBlob = append(respBlob, byte(s.kexMethod))
 
 	// Generate a new X448 keypair.
 	var xPublicKey, xPrivateKey, xSharedSecret [56]byte

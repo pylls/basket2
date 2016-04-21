@@ -31,9 +31,9 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-// Method is a supported/known handshake primitive set approximately analagous
-// to a TLS ciphersuite.
-type Method int
+// KEXMethod is a supported/known handshake key exchange primitive set
+// approximately analagous to a TLS ciphersuite.
+type KEXMethod int
 
 const (
 	// HandshakeVersion is the current handshake version.
@@ -50,9 +50,9 @@ const (
 )
 
 var (
-	// ErrInvalidMethod is the error returned when the handshake method is
-	// invalid/unsupported.
-	ErrInvalidMethod = errors.New("handshake: invalid method")
+	// ErrInvalidKEXMethod is the error returned when the handshake KEX method
+	// is invalid/unsupported.
+	ErrInvalidKEXMethod = errors.New("handshake: invalid KEX method")
 
 	// ErrInvalidPayload is the error returned when the handshake message
 	// is malformed.
@@ -108,7 +108,7 @@ type ClientHandshake struct {
 
 	obfs *clientObfsCtx
 
-	method Method
+	kexMethod KEXMethod
 
 	nhPublicKey  *newhope.PublicKeyAlice
 	nhPrivateKey *newhope.PrivateKeyAlice
@@ -126,13 +126,13 @@ type ClientHandshake struct {
 func (c *ClientHandshake) Handshake(rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, []byte, error) {
 	defer c.Reset()
 
-	switch c.method {
+	switch c.kexMethod {
 	case X25519NewHope:
 		return c.handshakeX25519(rw, extData, padLen)
 	case X448NewHope:
 		return c.handshakeX448(rw, extData, padLen)
 	default:
-		return nil, nil, ErrInvalidMethod
+		return nil, nil, ErrInvalidKEXMethod
 	}
 }
 
@@ -156,11 +156,11 @@ func (c *ClientHandshake) Reset() {
 // Note: Due to the rejection sampling in Elligator 2 keypair generation, this
 // should be done offline.  The timing variation only leaks information about
 // the obfuscation method, and does not compromise secrecy or integrity.
-func NewClientHandshake(rand io.Reader, method Method, serverPublicKey *identity.PublicKey) (*ClientHandshake, error) {
+func NewClientHandshake(rand io.Reader, kexMethod KEXMethod, serverPublicKey *identity.PublicKey) (*ClientHandshake, error) {
 	var err error
 	c := new(ClientHandshake)
 	c.rand = rand
-	c.method = method
+	c.kexMethod = kexMethod
 
 	// Generate the NewHope keypair.
 	h, err := crypto.NewTweakedShake256(rand, newhopeRandTweak)
@@ -172,11 +172,11 @@ func NewClientHandshake(rand io.Reader, method Method, serverPublicKey *identity
 		return nil, err
 	}
 
-	switch c.method {
+	switch c.kexMethod {
 	case X25519NewHope:
 	case X448NewHope:
 	default:
-		return nil, ErrInvalidMethod
+		return nil, ErrInvalidKEXMethod
 	}
 
 	// Generate the obfuscation state (which generates a X25519 keypair and
@@ -191,13 +191,13 @@ func NewClientHandshake(rand io.Reader, method Method, serverPublicKey *identity
 
 // ServerHandshake is the server handshake state.
 type ServerHandshake struct {
-	rand           io.Reader
-	allowedMethods []Method
+	rand              io.Reader
+	allowedKEXMethods []KEXMethod
 
 	obfs *serverObfsCtx
 
-	method  Method
-	reqBlob []byte
+	kexMethod KEXMethod
+	reqBlob   []byte
 }
 
 // RecvHandshakeReq receives and validates the client's handshake request and
@@ -216,19 +216,19 @@ func (s *ServerHandshake) RecvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
 	if reqBlob[0] != HandshakeVersion {
 		return nil, ErrInvalidPayload
 	}
-	s.method = Method(reqBlob[1])
+	s.kexMethod = KEXMethod(reqBlob[1])
 	s.reqBlob = reqBlob
-	if !s.isAllowedMethod(s.method) {
-		return nil, ErrInvalidMethod
+	if !s.isAllowedKEXMethod(s.kexMethod) {
+		return nil, ErrInvalidKEXMethod
 	}
 
-	switch s.method {
+	switch s.kexMethod {
 	case X25519NewHope:
 		return s.parseReqX25519()
 	case X448NewHope:
 		return s.parseReqX448()
 	default:
-		return nil, ErrInvalidMethod
+		return nil, ErrInvalidKEXMethod
 	}
 }
 
@@ -240,13 +240,13 @@ func (s *ServerHandshake) RecvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
 func (s *ServerHandshake) SendHandshakeResp(rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, error) {
 	defer s.Reset()
 
-	switch s.method {
+	switch s.kexMethod {
 	case X25519NewHope:
 		return s.sendRespX25519(rw, extData, padLen)
 	case X448NewHope:
 		return s.sendRespX448(rw, extData, padLen)
 	default:
-		return nil, ErrInvalidMethod
+		return nil, ErrInvalidKEXMethod
 	}
 }
 
@@ -259,9 +259,9 @@ func (s *ServerHandshake) Reset() {
 	}
 }
 
-func (s *ServerHandshake) isAllowedMethod(method Method) bool {
-	for _, v := range s.allowedMethods {
-		if v == method {
+func (s *ServerHandshake) isAllowedKEXMethod(kexMethod KEXMethod) bool {
+	for _, v := range s.allowedKEXMethods {
+		if v == kexMethod {
 			return true
 		}
 	}
@@ -270,11 +270,11 @@ func (s *ServerHandshake) isAllowedMethod(method Method) bool {
 
 // NewServerHandshake creates a new ServerHandshake instance suitable for a
 // single handshake to the provided peer identified by a private key.
-func NewServerHandshake(rand io.Reader, methods []Method, replay *a2filter.A2Filter, serverPrivateKey *identity.PrivateKey) (*ServerHandshake, error) {
+func NewServerHandshake(rand io.Reader, kexMethods []KEXMethod, replay *a2filter.A2Filter, serverPrivateKey *identity.PrivateKey) (*ServerHandshake, error) {
 	var err error
 	s := new(ServerHandshake)
 	s.rand = rand
-	s.allowedMethods = methods
+	s.allowedKEXMethods = kexMethods
 
 	// Generate the obfuscation state.  The actual handshake response keypair
 	// generation is handled when the handshake actually occurs.

@@ -35,12 +35,12 @@ var (
 	clientExtData = []byte("The peculiar evil of silencing the expression of an opinion is, that it is robbing the human race; posterity as well as the existing generation; those who dissent from the opinion, still more than those who hold it.")
 	serverExtData = []byte("If the opinion is right, they are deprived of the opportunity of exchanging error for truth: if wrong, they lose, what is almost as great a benefit, the clearer perception and livelier impression of truth, produced by its collision with error.")
 
-	methods = []Method{X25519NewHope, X448NewHope}
+	kexMethods = []KEXMethod{X25519NewHope, X448NewHope}
 )
 
 type testState struct {
 	sync.WaitGroup
-	method Method
+	kexMethod KEXMethod
 
 	bobKeypair *identity.PrivateKey
 	replay     *a2filter.A2Filter
@@ -61,7 +61,7 @@ func (s *testState) aliceRoutine() {
 	defer s.Done()
 	defer s.alicePipe.Close()
 
-	hs, err := NewClientHandshake(rand.Reader, s.method, &s.bobKeypair.PublicKey)
+	hs, err := NewClientHandshake(rand.Reader, s.kexMethod, &s.bobKeypair.PublicKey)
 	if err != nil {
 		s.aliceCh <- err
 		return
@@ -85,7 +85,7 @@ func (s *testState) bobRoutine() {
 	defer s.Done()
 	defer s.bobPipe.Close()
 
-	hs, err := NewServerHandshake(rand.Reader, methods, s.replay, s.bobKeypair)
+	hs, err := NewServerHandshake(rand.Reader, kexMethods, s.replay, s.bobKeypair)
 	if err != nil {
 		s.bobCh <- err
 		return
@@ -162,20 +162,20 @@ func TestHandshakeSmoke(t *testing.T) {
 		t.Fatalf("failed to generate test state: %v", err)
 	}
 
-	for _, v := range methods {
-		s.method = v
+	for _, v := range kexMethods {
+		s.kexMethod = v
 		if err := s.oneIter(); err != nil {
 			t.Fatalf("handshake failed: %v", err)
 		}
 	}
 }
 
-func benchmarkHandshake(b *testing.B, m Method) {
+func benchmarkHandshake(b *testing.B, m KEXMethod) {
 	s, err := newTestState()
 	if err != nil {
 		b.Fatalf("failed to generate benchmark state: %v", err)
 	}
-	s.method = m
+	s.kexMethod = m
 
 	// This benchmarks both sides, with a certain amount of extra overhead in
 	// sanity checks and what not.  Since the replay detection is
