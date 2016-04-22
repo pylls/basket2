@@ -25,7 +25,6 @@ import (
 	"sync"
 	"testing"
 
-	"git.schwanenlied.me/yawning/a2filter.git"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
 )
 
@@ -43,7 +42,7 @@ type testState struct {
 	kexMethod KEXMethod
 
 	bobKeypair *identity.PrivateKey
-	replay     *a2filter.A2Filter
+	replay     ReplayFilter
 
 	aliceCh, bobCh     chan error
 	alicePipe, bobPipe net.Conn
@@ -178,13 +177,11 @@ func benchmarkHandshake(b *testing.B, m KEXMethod) {
 	s.kexMethod = m
 
 	// This benchmarks both sides, with a certain amount of extra overhead in
-	// sanity checks and what not.  Since the replay detection is
-	// probablisic, it can fail without there being anything wrong. c'est la
-	// vie.
+	// sanity checks and what not.
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if err := s.oneIter(); err != nil {
-			b.Fatalf("handshake failed: (maybe false positive) %v", err)
+			b.Fatalf("handshake failed: %v", err)
 		}
 	}
 }
@@ -208,7 +205,7 @@ func newTestState() (*testState, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.replay, err = NewReplay()
+	s.replay, err = NewSmallReplayFilter()
 	if err != nil {
 		return nil, err
 	}

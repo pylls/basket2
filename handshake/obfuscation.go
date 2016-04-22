@@ -24,7 +24,6 @@ import (
 	"io"
 	"time"
 
-	"git.schwanenlied.me/yawning/a2filter.git"
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
 	"git.schwanenlied.me/yawning/basket2.git/ext/elligator2"
@@ -224,7 +223,7 @@ type serverObfsCtx struct {
 	tHash            hash.Hash
 	transcriptDigest [32]byte
 
-	replay *a2filter.A2Filter
+	replay ReplayFilter
 }
 
 // reset sanitizes private values from the server handshake obfuscator state.
@@ -359,7 +358,7 @@ func (o *serverObfsCtx) sendHandshakeResp(rw io.ReadWriter, msg []byte, padLen i
 	return nil
 }
 
-func newServerObfs(replay *a2filter.A2Filter, staticObfsKeypair *identity.PrivateKey) (*serverObfsCtx, error) {
+func newServerObfs(replay ReplayFilter, staticObfsKeypair *identity.PrivateKey) (*serverObfsCtx, error) {
 	o := new(serverObfsCtx)
 	o.keypair = staticObfsKeypair
 	o.replay = replay

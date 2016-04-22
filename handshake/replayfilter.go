@@ -22,62 +22,66 @@ import (
 	"sync"
 	"time"
 
+	"git.schwanenlied.me/yawning/a2filter.git"
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
+	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
 
 	"github.com/dchest/siphash"
 )
 
 const (
-	maxFilterSize       = 100 * 1024
+	maxFilterSize       = 10 * 1000
 	fullCompactInterval = 60 * time.Minute
+
+	// This allows for at least 1.4 million entries.
+	replayLargeSize = 25      // 2^25 bits (4 MiB per buffer)
+	replayLargeRate = 0.00001 // 1/100k (False positive rate)
 )
 
-// ReplayFilter is the handshake replay detection filter.  It should be
-// created per listener (or equivalent).
-type ReplayFilter struct {
+// ReplayFilter is the replay filter interface.
+type ReplayFilter interface {
+	// TestAndSet adds the provided byte slice to the replay filter, and
+	// returns true iff it was already present.  The implementation MUST
+	// be thread safe.
+	TestAndSet([]byte) bool
+}
+
+// NewLargeReplayFilter creates a new high capacity replay filter suitable
+// for extremely busy servers.  It is backed by an active-active bloom
+// filter, and thus has false positives, though the rate is low enough that
+// such occurences should be relatively rare.
+func NewLargeReplayFilter() (ReplayFilter, error) {
+	return a2filter.New(rand.Reader, replayLargeSize, replayLargeRate)
+}
+
+type smallReplayFilter struct {
 	sync.Mutex
 
-	h hash.Hash64
-
+	h      hash.Hash64
 	filter map[uint64]uint64
 
 	lastCompactAt time.Time
 	compactTimer  *time.Timer
 }
 
-// NewReplayFilter constructs a new ReplayFilter instance using the provided
-// entropy source to key the internal hash table.
-func NewReplayFilter(rand io.Reader) (*ReplayFilter, error) {
-	var k [16]byte
-	defer crypto.Memwipe(k[:])
-	if _, err := io.ReadFull(rand, k[:]); err != nil {
-		return nil, err
-	}
-
-	f := new(ReplayFilter)
-	f.h = siphash.New(k[:])
-	f.filter = make(map[uint64]uint64)
-	f.compactTimer = time.AfterFunc(fullCompactInterval, f.fullCompact)
-	return f, nil
-}
-
-func (f *ReplayFilter) testAndSet(mark *[32]byte, epochHour uint64) bool {
+func (f *smallReplayFilter) TestAndSet(b []byte) bool {
+	now := getEpochHour()
 	f.Lock()
 	defer f.Unlock()
 
-	f.h.Write(mark[:])
-	mh := f.h.Sum64()
+	f.h.Write(b)
+	digest := f.h.Sum64()
 	f.h.Reset()
 
-	_, present := f.filter[mh]
+	// Test first, if it's present there's nothing more to do.
+	_, present := f.filter[digest]
 	if present {
-		// Hit.
 		return true
 	}
 
 	// If the filter is full...
 	if len(f.filter) >= maxFilterSize {
-		// Attempt to evict an old entry...
+		// Attempt a compaction early.
 		if !f.compactLocked() {
 			// Failed to evict.  We can either evict one at random and hope
 			// nothing evil is going on, or treat everything as a hit till
@@ -88,26 +92,29 @@ func (f *ReplayFilter) testAndSet(mark *[32]byte, epochHour uint64) bool {
 		}
 	}
 
-	// Miss, add the mark to the filter.
-	f.filter[mh] = epochHour
+	// AFTER epochHour() + 1, the mark will no longer be considered valid,
+	// so that's the latest we need to keep the entry in the filter.
+	f.filter[digest] = now + 1
+
 	return false
 }
 
-func (f *ReplayFilter) compactLocked() bool {
-	eh := getEpochHour()
+func (f *smallReplayFilter) compactLocked() bool {
+	now := getEpochHour()
 
-	// Iterate over the filter, purging entries older than the current
-	// epoch - 1, since they will no longer be accepted.
+	// Iterate over the filter.
 	for k, v := range f.filter {
-		if v < eh-1 {
+		// The filter stores the epoch hour which the entry was accepted + 1,
+		// which is the last possible interval at which the given entry is
+		// considered valid.
+		if v < now {
 			delete(f.filter, k)
 		}
 	}
-
 	return len(f.filter) < maxFilterSize
 }
 
-func (f *ReplayFilter) fullCompact() {
+func (f *smallReplayFilter) fullCompact() {
 	now := time.Now()
 
 	f.Lock()
@@ -128,4 +135,22 @@ func (f *ReplayFilter) fullCompact() {
 	// Schedule the next compaction.
 	f.lastCompactAt = now
 	f.compactTimer = time.AfterFunc(fullCompactInterval, f.fullCompact)
+}
+
+// NewSmallReplayFilter creates a new "small" capacity replay filter.  It is
+// backed by a map, and has no false positives, but will reject connections
+// if the filter ever fills up (10k entries) till space is made by older
+// entries expiring.
+func NewSmallReplayFilter() (ReplayFilter, error) {
+	var k [16]byte
+	defer crypto.Memwipe(k[:])
+	if _, err := io.ReadFull(rand.Reader, k[:]); err != nil {
+		return nil, err
+	}
+
+	f := new(smallReplayFilter)
+	f.h = siphash.New(k[:])
+	f.filter = make(map[uint64]uint64)
+	f.compactTimer = time.AfterFunc(fullCompactInterval, f.fullCompact)
+	return f, nil
 }

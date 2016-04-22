@@ -22,10 +22,8 @@ import (
 	"errors"
 	"io"
 
-	"git.schwanenlied.me/yawning/a2filter.git"
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
-	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
 	"git.schwanenlied.me/yawning/newhope.git"
 
 	"golang.org/x/crypto/sha3"
@@ -44,9 +42,6 @@ const (
 	MessageSize = x448RespSize + obfsServerOverhead
 
 	minReqSize = 1 + 1
-
-	replayDefaultSize = 22      // 4 MiB (2^22 bytes)
-	replayDefaultRate = 0.00001 // 1/100k (False postive rate)
 )
 
 var (
@@ -270,7 +265,7 @@ func (s *ServerHandshake) isAllowedKEXMethod(kexMethod KEXMethod) bool {
 
 // NewServerHandshake creates a new ServerHandshake instance suitable for a
 // single handshake to the provided peer identified by a private key.
-func NewServerHandshake(rand io.Reader, kexMethods []KEXMethod, replay *a2filter.A2Filter, serverPrivateKey *identity.PrivateKey) (*ServerHandshake, error) {
+func NewServerHandshake(rand io.Reader, kexMethods []KEXMethod, replay ReplayFilter, serverPrivateKey *identity.PrivateKey) (*ServerHandshake, error) {
 	var err error
 	s := new(ServerHandshake)
 	s.rand = rand
@@ -284,9 +279,4 @@ func NewServerHandshake(rand io.Reader, kexMethods []KEXMethod, replay *a2filter
 	}
 
 	return s, nil
-}
-
-// NewReplay creates a new replay filter suitable for most server endpoints.
-func NewReplay() (*a2filter.A2Filter, error) {
-	return a2filter.New(rand.Reader, replayDefaultSize, replayDefaultRate)
 }
