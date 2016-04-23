@@ -1,4 +1,4 @@
-### basket2 - A transport for the paranoid.
+### basket2 - Obfsy McObfsface
 #### Yawning Angel (yawning at schwanenlied dot me)
 
 basket2 is the next transport in the obfs series.  It derives inspiration
@@ -59,6 +59,11 @@ Notes:
 
  * If your system has busted PMTUD, this probably won't work at all.  Not my
    problem.  Complain to your OS vendor.
+
+ * This COULD have been based on Trevor Perin's noise protocol framework, but
+   I already had the framing layer design, didn't feel like bolting on PQFS
+   to someone else's protocol, and I had to click on street signs to view said
+   protocol's documentation.
 
 TODO:
 
