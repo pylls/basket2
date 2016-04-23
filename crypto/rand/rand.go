@@ -19,7 +19,6 @@
 package rand
 
 import (
-	csrand "crypto/rand"
 	"encoding/binary"
 	"hash"
 	"io"
@@ -29,13 +28,6 @@ import (
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
 
 	"github.com/dchest/siphash"
-)
-
-var (
-	usingImprovedSyscallEntropy = false
-
-	// Reader is a conveninece alias for crypto/rand.Reader.
-	Reader = csrand.Reader
 )
 
 type sipSource struct {
