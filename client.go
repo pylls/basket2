@@ -59,18 +59,13 @@ func (c *ClientConn) Handshake(conn net.Conn) (err error) {
 	}
 	c.conn = conn
 
-	//
-	// Attempt the handshake.
-	//
-
 	// XXX: Build the request extData, for padding negotiation purposes,
 	// and determine the overall handshake request pad length.
 	padLen := 0
 
 	var keys *handshake.SessionKeys
 	var respExtData []byte
-	keys, respExtData, err = c.handshakeState.Handshake(c.conn, nil, padLen)
-	if err != nil {
+	if keys, respExtData, err = c.handshakeState.Handshake(c.conn, nil, padLen); err != nil {
 		return
 	}
 	defer keys.Reset()
@@ -133,6 +128,13 @@ func (c *ClientConn) Handshake(conn net.Conn) (err error) {
 // information regarding the obfuscation method.
 func NewClientConn(config *ClientConfig) (*ClientConn, error) {
 	var err error
+
+	if len(config.PaddingMethods) == 0 {
+		panic("basket2: no requested padding methods")
+	}
+	if config.ServerPublicKey == nil {
+		panic("basket2: no server public key")
+	}
 
 	c := new(ClientConn)
 	c.config = config
