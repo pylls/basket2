@@ -31,7 +31,7 @@ import (
 
 // KEXMethod is a supported/known handshake key exchange primitive set
 // approximately analagous to a TLS ciphersuite.
-type KEXMethod int
+type KEXMethod byte
 
 const (
 	// HandshakeVersion is the current handshake version.

@@ -37,13 +37,14 @@ Notes:
    License") of the AGPL, per the terms of Section 7 ("Additional Terms"),
    for users that:
 
-    * Are using the software to operate a publically accessible Bridge to
-      provide access to the public Tor network as a Tor Pluggable Transport
-      server.  This means:
+    * Are using the software exclusively to operate a publically accessible
+      Bridge to provide access to the public Tor network as a Tor Pluggable
+      Transport server.  This means:
 
         The Bridge publishes a descriptor to the Bridge Authority, and is
         available via BridgeDB OR is a default Bridge pre-configured and
-        distributed with Tor Browser.
+        distributed with Tor Browser, and uses basket2 as a server side
+        Pluggable Transport for said Bridge.
 
  * All other users MUST comply with the AGPL in it's entirety as a general
    rule, though other licensing arrangements may be possible on request.
@@ -68,6 +69,8 @@ Notes:
 TODO:
 
  * Write a formal specification.
+
+ * Write an AVX2 optimized Poly1305 implementation.
 
  * Someone that's not me should write assembly optimized ChaCha20 for ARM and
    i386.  I may do both if I feel bored enough, but no promises.

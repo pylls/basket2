@@ -1,5 +1,5 @@
-// const.go - Various constants.
-// Copyright (C) 2015-2016  Yawning Angel.
+// version_check.go - Version check
+// Copyright (C) 2016  Yawning Angel.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as
@@ -14,23 +14,12 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package framing
+// +build go1.6
+// +build !gccgo
 
-// The various commands for each message carried via the framing layer.  Each
-// command is 7 bits, with the most significant bit, signifying the direction.
-const (
-	CmdData = iota
-	CmdHandshake
-	CmdAuthenticate
+package basket2
 
-	CmdServer     = 0x80
-	CmdServerMask = 0x7f
-)
-
-const (
-	// MaxIPv4TcpSize is the typical Ethernet IPv4 TCP MSS.
-	MaxIPv4TcpSize = 1500 - (20 + 20)
-
-	// MaxIPv6TcpSize is the typical Ethernet IPv6 TCP MSS.
-	MaxIPv6TcpSize = 1500 - (40 + 20)
-)
+// Congratulations, your Go is sufficiently recent, and isn't gccgo.
+func isRecentEnoughGo() bool {
+	return true
+}
