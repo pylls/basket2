@@ -15,7 +15,9 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Package rand exposes a math/rand.Rand instance that is backed by the
-// system entropy source, with SipHash-2-4 based whitening.
+// system entropy source, with SipHash-2-4 based whitening, and a non-broken
+// replacement for crypto/rand.Reader that is actually suitable for generating
+// long term cryptographic keying material.
 package rand
 
 import (
