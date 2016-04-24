@@ -81,7 +81,7 @@ func (c *nullPadding) Read(p []byte) (n int, err error) {
 		}
 
 		// ... and stashing it in the buffer.
-		if msg != nil && len(msg) > 0 {
+		if len(msg) > 0 {
 			c.recvBuf.Write(msg)
 		}
 	}

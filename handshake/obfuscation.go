@@ -234,17 +234,17 @@ func (o *serverObfsCtx) reset() {
 	}
 }
 
-func (o *serverObfsCtx) recvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
+func (o *serverObfsCtx) recvHandshakeReq(r io.Reader) ([]byte, error) {
 	// Read the client representative.
 	var repr [32]byte
-	if _, err := io.ReadFull(rw, repr[:]); err != nil {
+	if _, err := io.ReadFull(r, repr[:]); err != nil {
 		return nil, err
 	}
 
 	// Read/Validate the client MAC, allowing for +- 1h clock difference
 	// between the client and server.
 	var mac [32]byte
-	if _, err := io.ReadFull(rw, mac[:]); err != nil {
+	if _, err := io.ReadFull(r, mac[:]); err != nil {
 		return nil, err
 	}
 	eh := getEpochHour()
@@ -308,7 +308,7 @@ func (o *serverObfsCtx) recvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
 
 	// Read/Decode client request header.
 	var reqHdr [tentp.FramingOverhead]byte
-	if _, err := io.ReadFull(rw, reqHdr[:]); err != nil {
+	if _, err := io.ReadFull(r, reqHdr[:]); err != nil {
 		return nil, err
 	}
 	o.tHash.Write(reqHdr[:])
@@ -326,14 +326,14 @@ func (o *serverObfsCtx) recvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
 
 	// Read/Decode client request body.
 	reqBody := make([]byte, want)
-	if _, err := io.ReadFull(rw, reqBody); err != nil {
+	if _, err := io.ReadFull(r, reqBody); err != nil {
 		return nil, err
 	}
 	o.tHash.Write(reqBody)
 	return dec.DecodeRecordBody(reqBody)
 }
 
-func (o *serverObfsCtx) sendHandshakeResp(rw io.ReadWriter, msg []byte, padLen int) error {
+func (o *serverObfsCtx) sendHandshakeResp(w io.Writer, msg []byte, padLen int) error {
 	// Initialize the frame encoder used to send the response.
 	defer o.keyHash.Reset()
 	enc, err := tentp.NewEncoderFromKDF(o.keyHash)
@@ -349,7 +349,7 @@ func (o *serverObfsCtx) sendHandshakeResp(rw io.ReadWriter, msg []byte, padLen i
 	}
 
 	// Send the response blob.
-	if _, err := rw.Write(frame); err != nil {
+	if _, err := w.Write(frame); err != nil {
 		return err
 	}
 	o.tHash.Write(frame)
