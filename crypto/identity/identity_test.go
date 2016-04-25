@@ -19,8 +19,33 @@ package identity
 import (
 	"bytes"
 	"crypto/rand"
+	"errors"
 	"testing"
 )
+
+func comparePublic(a, b *PublicKey) error {
+	if !bytes.Equal(a.DSAPublicKey[:], b.DSAPublicKey[:]) {
+		return errors.New("DSA public key mismatch")
+	}
+	if !bytes.Equal(a.KEXPublicKey[:], b.KEXPublicKey[:]) {
+		return errors.New("KEX public key mismatch")
+	}
+	return nil
+}
+
+func comparePrivate(a, b *PrivateKey) error {
+	if err := comparePublic(&a.PublicKey, &b.PublicKey); err != nil {
+		return err
+	}
+	if !bytes.Equal(a.DSAPrivateKey[:], b.DSAPrivateKey[:]) {
+		return errors.New("DSA private key mismatch")
+	}
+	if !bytes.Equal(a.KEXPrivateKey[:], b.KEXPrivateKey[:]) {
+		return errors.New("KEX private key mismatch")
+	}
+
+	return nil
+}
 
 func TestIdentity(t *testing.T) {
 	k0, err := NewPrivateKey(rand.Reader)
@@ -32,30 +57,33 @@ func TestIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to deseralize identity key: %v", err)
 	}
-
-	if !bytes.Equal(k0.DSAPrivateKey[:], k1.DSAPrivateKey[:]) {
-		t.Fatalf("DSA private key mismatch")
-	}
-	if !bytes.Equal(k0.KEXPrivateKey[:], k1.KEXPrivateKey[:]) {
-		t.Fatalf("KEX private key mismatch")
+	if err = comparePrivate(k0, k1); err != nil {
+		t.Fatalf("byte serialized SK: %v", err)
 	}
 
-	pk0, pk1 := &k0.PublicKey, &k1.PublicKey
-	if !bytes.Equal(pk0.DSAPublicKey[:], pk1.DSAPublicKey[:]) {
-		t.Fatalf("DSA public key mismatch")
+	pemEncodedSk := k1.ToPEM()
+	k3, err := PrivateKeyFromPEM(pemEncodedSk)
+	if err != nil {
+		t.Fatalf("failed to deserialize PEM identity key: %v", err)
 	}
-	if !bytes.Equal(pk0.KEXPublicKey[:], pk1.KEXPublicKey[:]) {
-		t.Fatalf("KEX public key mismatch")
+	if err = comparePrivate(k0, k3); err != nil {
+		t.Fatalf("PEM serialized SK: %v", err)
 	}
 
-	pk2, err := PublicKeyFromBytes(pk0.DSAPublicKey[:])
+	pk2, err := PublicKeyFromBytes(k0.DSAPublicKey[:])
 	if err != nil {
 		t.Fatalf("failed to deserialize identity public key: %v", err)
 	}
-	if !bytes.Equal(pk0.DSAPublicKey[:], pk2.DSAPublicKey[:]) {
-		t.Fatalf("DSA public key2 mismatch")
+	if err = comparePublic(&k0.PublicKey, pk2); err != nil {
+		t.Fatalf("byte serialized PK: %v", err)
 	}
-	if !bytes.Equal(pk0.KEXPublicKey[:], pk2.KEXPublicKey[:]) {
-		t.Fatalf("KEX public key2 mismatch")
+
+	pemEncodedPk := pk2.ToPEM()
+	pk3, err := PublicKeyFromPEM(pemEncodedPk)
+	if err != nil {
+		t.Fatalf("failed to deserialize PEM public key: %v", err)
+	}
+	if err = comparePublic(&k0.PublicKey, pk3); err != nil {
+		t.Fatalf("PEM serialized PK: %v", err)
 	}
 }

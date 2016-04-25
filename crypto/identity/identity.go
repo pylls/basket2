@@ -19,6 +19,7 @@
 package identity
 
 import (
+	"encoding/pem"
 	"errors"
 	"io"
 	"runtime"
@@ -44,6 +45,9 @@ const (
 	SignatureSize = ed25519.SignatureSize
 
 	maxKeygenAttempts = 8
+
+	publicKeyPEMType  = "ED25519 PUBLIC KEY"
+	privateKeyPEMType = "ED25519 PRIVATE KEY"
 )
 
 var (
@@ -90,6 +94,15 @@ func (k *PrivateKey) Reset() {
 	crypto.Memwipe(k.KEXPrivateKey[:])
 }
 
+// ToPEM serializes a private key to PEM format.
+func (k *PrivateKey) ToPEM() []byte {
+	block := &pem.Block{
+		Type:  privateKeyPEMType,
+		Bytes: k.DSAPrivateKey[:],
+	}
+	return pem.EncodeToMemory(block)
+}
+
 func (k *PrivateKey) toCurve25519() error {
 	extra25519.PrivateKeyToCurve25519(&k.KEXPrivateKey, k.DSAPrivateKey)
 	return k.PublicKey.toCurve25519()
@@ -123,6 +136,20 @@ func NewPrivateKey(rand io.Reader) (*PrivateKey, error) {
 	// This should essentially never happen, even with a relatively low
 	// retry count.
 	panic("crypto/identity: failed to generate keypair, broken rng?")
+}
+
+// PrivateKeyFromPEM deserializes a PEM encoded private key.
+func PrivateKeyFromPEM(b []byte) (*PrivateKey, error) {
+	block, _ := pem.Decode(b)
+	if block == nil {
+		return nil, ErrInvalidKey
+	}
+	if block.Type != privateKeyPEMType {
+		return nil, ErrInvalidKey
+	}
+	defer crypto.Memwipe(block.Bytes[:])
+	// XXX: Just ignore trailing bullshit?
+	return PrivateKeyFromBytes(block.Bytes)
 }
 
 // PrivateKeyFromBytes deserializes a private key.
@@ -164,6 +191,28 @@ func (k *PublicKey) toCurve25519() error {
 		return nil
 	}
 	return ErrInvalidKey
+}
+
+// ToPEM serializes a public key to PEM format.
+func (k *PublicKey) ToPEM() []byte {
+	block := &pem.Block{
+		Type:  publicKeyPEMType,
+		Bytes: k.DSAPublicKey[:],
+	}
+	return pem.EncodeToMemory(block)
+}
+
+// PublicKeyFromPEM deserializes a PEM encoded public key.
+func PublicKeyFromPEM(b []byte) (*PublicKey, error) {
+	block, _ := pem.Decode(b)
+	if block == nil {
+		return nil, ErrInvalidKey
+	}
+	if block.Type != publicKeyPEMType {
+		return nil, ErrInvalidKey
+	}
+	// XXX: Just ignore trailing bullshit?
+	return PublicKeyFromBytes(block.Bytes)
 }
 
 // PublicKeyFromBytes deserializes a public key.
