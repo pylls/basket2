@@ -32,6 +32,11 @@ type ServerConfig struct {
 	PaddingMethods   []PaddingMethod
 	ReplayFilter     handshake.ReplayFilter
 	ServerPrivateKey *identity.PrivateKey
+
+	// PaddingParamFn is the function called at handshake time to obtain the
+	// per-connection padding parameters used to instantiate the server side
+	// padding algorithm (that will also be propagated back to the client).
+	PaddingParamFn func(PaddingMethod) ([]byte, error)
 }
 
 // ServerConn is a server side client connection instance, that implements theu
@@ -87,11 +92,16 @@ func (c *ServerConn) Handshake(conn net.Conn) (err error) {
 	if paddingMethod == paddingInvalid {
 		return ErrInvalidPadding
 	}
+	var paddingParams []byte
+	if paddingParams, err = c.config.PaddingParamFn(paddingMethod); err != nil {
+		return
+	}
 
 	// XXX: Build the response extData.
 	padLen := 0
 	shouldAuth := false
 
+	// Send the handshake response and derive the session keys.
 	var keys *handshake.SessionKeys
 	if keys, err = c.handshakeState.SendHandshakeResp(c.conn, nil, padLen); err != nil {
 		return
@@ -107,21 +117,15 @@ func (c *ServerConn) Handshake(conn net.Conn) (err error) {
 	}
 
 	// Bring the chosen padding algorithm online.
-	if err = c.setPadding(paddingMethod); err != nil { // XXX: Padding params
+	if err = c.setPadding(paddingMethod, paddingParams); err != nil {
 		return
 	}
 
 	// Authenticate the client if needed.
 	if shouldAuth {
-		if err = c.setState(stateAuthenticate); err != nil {
+		if err = c.authenticate(keys.TranscriptDigest); err != nil {
 			return
 		}
-
-		// Receive the peer's authenticate frame.
-
-		// Verify that the peer has signed keys.TranscriptDigest.
-
-		// Send an authetication response.
 	}
 
 	// The connection is now fully established.
@@ -130,6 +134,20 @@ func (c *ServerConn) Handshake(conn net.Conn) (err error) {
 	}
 
 	return nil
+}
+
+func (c *ServerConn) authenticate(transcriptDigest []byte) error {
+	if err := c.setState(stateAuthenticate); err != nil {
+		return err
+	}
+
+	// Receive the peer's authenticate frame.
+
+	// Verify that the peer has signed keys.TranscriptDigest.
+
+	// Send an authetication response.
+
+	return ErrNotSupported
 }
 
 // NewServerConn initializes a ServerConn.  Unlike NewClientConn this step may
@@ -142,6 +160,9 @@ func NewServerConn(config *ServerConfig) (*ServerConn, error) {
 	}
 	if len(config.PaddingMethods) == 0 {
 		panic("basket2: no PaddingMethods")
+	}
+	if config.PaddingParamFn == nil {
+		panic("basket2: no PaddingParamFn")
 	}
 	if config.ReplayFilter == nil {
 		panic("basket2: no replay filter")
@@ -162,3 +183,5 @@ func NewServerConn(config *ServerConfig) (*ServerConn, error) {
 
 	return c, nil
 }
+
+var _ net.Conn = (*ServerConn)(nil)

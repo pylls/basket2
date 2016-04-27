@@ -259,7 +259,7 @@ func (c *commonConn) SendRawRecord(cmd byte, msg []byte, padLen int) (err error)
 	return
 }
 
-func (c *commonConn) setPadding(method PaddingMethod) error {
+func (c *commonConn) setPadding(method PaddingMethod, params []byte) error {
 	switch method {
 	case PaddingNull:
 		c.impl = newNullPadding(c)

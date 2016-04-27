@@ -73,11 +73,12 @@ func (c *ClientConn) Handshake(conn net.Conn) (err error) {
 	//
 	// All requests on the wire will be of length [min, max).
 	padLen := minHandshakeSize - (handshake.MessageSize + len(reqExtData))
-	if padLen < 0 {
+	if padLen < 0 { // Should never happen.
 		panic("basket2: handshake request exceeds payload capacity")
 	}
 	padLen += c.mRNG.Intn(maxHandshakeSize - minHandshakeSize)
 
+	// Send the request, receive the response, and derive the session keys.
 	var keys *handshake.SessionKeys
 	var respExtData []byte
 	if keys, respExtData, err = c.handshakeState.Handshake(c.conn, reqExtData, padLen); err != nil {
@@ -105,22 +106,15 @@ func (c *ClientConn) Handshake(conn net.Conn) (err error) {
 	}
 
 	// Bring the chosen padding algorithm online.
-	if err = c.setPadding(paddingMethod); err != nil { // XXX: Padding params
+	if err = c.setPadding(paddingMethod, nil); err != nil {
 		return
 	}
 
 	// Authenticate if needed.
 	if shouldAuth {
-		if err = c.setState(stateAuthenticate); err != nil {
+		if err = c.authenticate(keys.TranscriptDigest); err != nil {
 			return
 		}
-
-		// XXX: Sign TranscriptDigest, and send the authentication request.
-		// keys.TranscriptDigest  <- sign this shit.
-
-		// XXX: Figure out how to invoke the padding algorithm for auth. :/
-
-		// Receive the authentication response.
 	}
 
 	// The connection is now fully established.
@@ -129,6 +123,20 @@ func (c *ClientConn) Handshake(conn net.Conn) (err error) {
 	}
 
 	return nil
+}
+
+func (c *ClientConn) authenticate(transcriptDigest []byte) error {
+	if err := c.setState(stateAuthenticate); err != nil {
+		return err
+	}
+
+	// Sign TranscriptDigest, and send the authentication request.
+
+	// Figure out how to invoke the padding algorithm for auth. :/
+
+	// Receive the authentication response.
+
+	return ErrNotSupported
 }
 
 // NewClientConn initializes a ClientConn.  This step should be done offline,
