@@ -39,7 +39,7 @@ type ServerConfig struct {
 	PaddingParamFn func(PaddingMethod) ([]byte, error)
 }
 
-// ServerConn is a server side client connection instance, that implements theu
+// ServerConn is a server side client connection instance, that implements the
 // net.Conn interface.
 type ServerConn struct {
 	commonConn
@@ -73,7 +73,7 @@ func (c *ServerConn) Handshake(conn net.Conn) (err error) {
 
 	// Parse the request extData to see which padding algorithm(s) the
 	// peer wants us to select from.
-	if len(reqExtData) < minReqExtDataLen {
+	if len(reqExtData) < minReqExtDataSize {
 		return ErrInvalidExtData
 	}
 	if reqExtData[0] != ProtocolVersion {
@@ -97,13 +97,27 @@ func (c *ServerConn) Handshake(conn net.Conn) (err error) {
 		return
 	}
 
-	// XXX: Build the response extData.
-	padLen := 0
 	shouldAuth := false
+
+	// Build the response extData.
+	respExtData := make([]byte, 0, minRespExtDataSize+len(paddingParams))
+	respExtData = append(respExtData, ProtocolVersion)
+	respExtData = append(respExtData, 0) // XXX: AuthPolicy
+	respExtData = append(respExtData, byte(paddingMethod))
+	respExtData = append(respExtData, paddingParams...)
+
+	// Determine the response padding length by adding padding required to
+	// bring the response size up to the minimum target length, and then
+	// adding a random amount of padding.
+	padLen := minHandshakeSize - (handshake.MessageSize + len(respExtData))
+	if padLen < 0 { // Should never happen.
+		panic("basket2: handshake response exceeds payload capacity")
+	}
+	padLen += c.mRNG.Intn(maxHandshakeSize - minHandshakeSize)
 
 	// Send the handshake response and derive the session keys.
 	var keys *handshake.SessionKeys
-	if keys, err = c.handshakeState.SendHandshakeResp(c.conn, nil, padLen); err != nil {
+	if keys, err = c.handshakeState.SendHandshakeResp(c.conn, respExtData, padLen); err != nil {
 		return
 	}
 	defer keys.Reset()
@@ -161,14 +175,14 @@ func NewServerConn(config *ServerConfig) (*ServerConn, error) {
 	if len(config.PaddingMethods) == 0 {
 		panic("basket2: no PaddingMethods")
 	}
-	if config.PaddingParamFn == nil {
-		panic("basket2: no PaddingParamFn")
-	}
 	if config.ReplayFilter == nil {
 		panic("basket2: no replay filter")
 	}
 	if config.ServerPrivateKey == nil {
 		panic("basket2: no server private key")
+	}
+	if config.PaddingParamFn == nil {
+		config.PaddingParamFn = defaultPaddingParams
 	}
 
 	c := new(ServerConn)

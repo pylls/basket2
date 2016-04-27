@@ -40,10 +40,12 @@ const (
 	// ProtocolVersion is the transport protocol version.
 	ProtocolVersion = 0
 
-	minHandshakeSize               = 4096
-	maxHandshakeSize               = 8192
-	minReqExtDataLen               = 1 + 1 + 1 // Version, nrPaddingAlgs, > 1 padding alg.
-	paddingInvalid   PaddingMethod = 0xff
+	// XXX: Should I adjust these??  Maybe make them framesize based?
+	minHandshakeSize                 = 4096
+	maxHandshakeSize                 = 8192
+	minReqExtDataSize                = 1 + 1 + 1 // Version, nrPaddingAlgs, > 1 padding alg.
+	minRespExtDataSize               = 1 + 1 + 1 // Version, authPolicy, padding alg.
+	paddingInvalid     PaddingMethod = 0xff
 )
 
 var (
@@ -327,6 +329,15 @@ func paddingOk(needle PaddingMethod, haystack []PaddingMethod) bool {
 		}
 	}
 	return false
+}
+
+func defaultPaddingParams(method PaddingMethod) ([]byte, error) {
+	// Provide a sane set of default padding algorithm parameters if possible.
+	switch method {
+	case PaddingNull:
+		return nil, nil
+	}
+	return nil, ErrInvalidPadding
 }
 
 func init() {

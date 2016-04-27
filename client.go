@@ -86,11 +86,17 @@ func (c *ClientConn) Handshake(conn net.Conn) (err error) {
 	}
 	defer keys.Reset()
 
-	// XXX: Parse the response extData to see which padding algorithm to use,
+	// Parse the response extData to see which padding algorithm to use,
 	// and if authentication is possible/required.
-	_ = respExtData
-	shouldAuth := false
-	paddingMethod := PaddingNull
+	if len(respExtData) < minRespExtDataSize {
+		return ErrInvalidExtData
+	}
+	if respExtData[0] != ProtocolVersion {
+		return ErrInvalidExtData
+	}
+	authPolicy := respExtData[1]
+	paddingMethod := PaddingMethod(respExtData[2])
+	paddingParams := respExtData[minRespExtDataSize:]
 
 	// Validate that the negotiated padding method is contained in our request.
 	if !paddingOk(paddingMethod, c.config.PaddingMethods) {
@@ -106,11 +112,13 @@ func (c *ClientConn) Handshake(conn net.Conn) (err error) {
 	}
 
 	// Bring the chosen padding algorithm online.
-	if err = c.setPadding(paddingMethod, nil); err != nil {
+	if err = c.setPadding(paddingMethod, paddingParams); err != nil {
 		return
 	}
 
 	// Authenticate if needed.
+	shouldAuth := false
+	_ = authPolicy // XXX: Transition to using this instead of shouldAuth
 	if shouldAuth {
 		if err = c.authenticate(keys.TranscriptDigest); err != nil {
 			return
