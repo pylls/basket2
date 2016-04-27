@@ -67,8 +67,16 @@ func (c *ClientConn) Handshake(conn net.Conn) (err error) {
 		reqExtData = append(reqExtData, byte(v))
 	}
 
-	// XXX: Determine the request padding length.
-	padLen := 0
+	// Determine the request padding length by adding padding required to
+	// bring the request size up to the minimum target length, and then
+	// adding a random amount of padding.
+	//
+	// All requests on the wire will be of length [min, max).
+	padLen := minHandshakeSize - (handshake.MessageSize + len(reqExtData))
+	if padLen < 0 {
+		panic("basket2: handshake request exceeds payload capacity")
+	}
+	padLen += c.mRNG.Intn(maxHandshakeSize - minHandshakeSize)
 
 	var keys *handshake.SessionKeys
 	var respExtData []byte

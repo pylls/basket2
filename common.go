@@ -40,6 +40,8 @@ const (
 	// ProtocolVersion is the transport protocol version.
 	ProtocolVersion = 0
 
+	minHandshakeSize               = 4096
+	maxHandshakeSize               = 8192
 	minReqExtDataLen               = 1 + 1 + 1 // Version, nrPaddingAlgs, > 1 padding alg.
 	paddingInvalid   PaddingMethod = 0xff
 )
