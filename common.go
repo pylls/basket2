@@ -36,6 +36,14 @@ import (
 	"git.schwanenlied.me/yawning/basket2.git/framing/tentp"
 )
 
+const (
+	// ProtocolVersion is the transport protocol version.
+	ProtocolVersion = 0
+
+	minReqExtDataLen               = 1 + 1 + 1 // Version, nrPaddingAlgs, > 1 padding alg.
+	paddingInvalid   PaddingMethod = 0xff
+)
+
 var (
 	// ErrInvalidState is the error returned on an invalid state or transition.
 	ErrInvalidState = errors.New("basket2: invalid state")
@@ -49,11 +57,12 @@ var (
 	// padding method.
 	ErrInvalidPadding = errors.New("basket2: invalid padding")
 
+	// ErrInvalidExtData is the error returned when the req/resp handshake
+	// extData is invalid.
+	ErrInvalidExtData = errors.New("basket2: invalid ext data")
+
 	// ErrNotSupported is the error returned on an unsupported call.
 	ErrNotSupported = errors.New("basket2: operation not supported")
-
-	// ProtocolVersion is the transport protocol version.
-	ProtocolVersion = 0
 )
 
 // PaddingMethod is a given padding algorithm identifier.
@@ -307,6 +316,15 @@ func (c *commonConn) RecvRawRecord() (cmd byte, msg []byte, err error) {
 	}
 
 	return
+}
+
+func paddingOk(needle PaddingMethod, haystack []PaddingMethod) bool {
+	for _, v := range haystack {
+		if needle == v {
+			return true
+		}
+	}
+	return false
 }
 
 func init() {

@@ -59,13 +59,20 @@ func (c *ClientConn) Handshake(conn net.Conn) (err error) {
 	}
 	c.conn = conn
 
-	// XXX: Build the request extData, for padding negotiation purposes,
-	// and determine the overall handshake request pad length.
+	// Build the request extData to negotiate padding algorithms.
+	reqExtData := make([]byte, 0, 1+1+len(c.config.PaddingMethods))
+	reqExtData = append(reqExtData, ProtocolVersion)
+	reqExtData = append(reqExtData, byte(len(c.config.PaddingMethods)))
+	for _, v := range c.config.PaddingMethods {
+		reqExtData = append(reqExtData, byte(v))
+	}
+
+	// XXX: Determine the request padding length.
 	padLen := 0
 
 	var keys *handshake.SessionKeys
 	var respExtData []byte
-	if keys, respExtData, err = c.handshakeState.Handshake(c.conn, nil, padLen); err != nil {
+	if keys, respExtData, err = c.handshakeState.Handshake(c.conn, reqExtData, padLen); err != nil {
 		return
 	}
 	defer keys.Reset()
@@ -77,14 +84,7 @@ func (c *ClientConn) Handshake(conn net.Conn) (err error) {
 	paddingMethod := PaddingNull
 
 	// Validate that the negotiated padding method is contained in our request.
-	paddingOk := false
-	for _, v := range c.config.PaddingMethods {
-		if paddingMethod == v {
-			paddingOk = true
-			break
-		}
-	}
-	if !paddingOk {
+	if !paddingOk(paddingMethod, c.config.PaddingMethods) {
 		return ErrInvalidPadding
 	}
 
@@ -131,6 +131,9 @@ func NewClientConn(config *ClientConfig) (*ClientConn, error) {
 
 	if len(config.PaddingMethods) == 0 {
 		panic("basket2: no requested padding methods")
+	}
+	if len(config.PaddingMethods) > 255 {
+		panic("basket2: too many padding methods")
 	}
 	if config.ServerPublicKey == nil {
 		panic("basket2: no server public key")

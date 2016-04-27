@@ -29,6 +29,7 @@ import (
 // constructing a ServerConn.
 type ServerConfig struct {
 	KEXMethods       []handshake.KEXMethod
+	PaddingMethods   []PaddingMethod
 	ReplayFilter     handshake.ReplayFilter
 	ServerPrivateKey *identity.PrivateKey
 }
@@ -65,10 +66,27 @@ func (c *ServerConn) Handshake(conn net.Conn) (err error) {
 		return
 	}
 
-	// XXX: Parse the request extData to see which padding algorithm(s) the
+	// Parse the request extData to see which padding algorithm(s) the
 	// peer wants us to select from.
-	_ = reqExtData
-	paddingMethod := PaddingNull
+	if len(reqExtData) < minReqExtDataLen {
+		return ErrInvalidExtData
+	}
+	if reqExtData[0] != ProtocolVersion {
+		return ErrInvalidExtData
+	}
+	if int(reqExtData[1]) != len(reqExtData)-2 {
+		return ErrInvalidExtData
+	}
+	paddingMethod := paddingInvalid
+	for _, v := range reqExtData[2:] {
+		if paddingOk(PaddingMethod(v), c.config.PaddingMethods) {
+			paddingMethod = PaddingMethod(v)
+			break
+		}
+	}
+	if paddingMethod == paddingInvalid {
+		return ErrInvalidPadding
+	}
 
 	// XXX: Build the response extData.
 	padLen := 0
@@ -120,7 +138,10 @@ func NewServerConn(config *ServerConfig) (*ServerConn, error) {
 	var err error
 
 	if len(config.KEXMethods) == 0 {
-		panic("basket2: no KEXMethods, this will never work")
+		panic("basket2: no KEXMethods")
+	}
+	if len(config.PaddingMethods) == 0 {
+		panic("basket2: no PaddingMethods")
 	}
 	if config.ReplayFilter == nil {
 		panic("basket2: no replay filter")
