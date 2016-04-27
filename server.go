@@ -28,10 +28,13 @@ import (
 // ServerConfig is the server configuration parameters to use when
 // constructing a ServerConn.
 type ServerConfig struct {
-	KEXMethods       []handshake.KEXMethod
-	PaddingMethods   []PaddingMethod
-	ReplayFilter     handshake.ReplayFilter
 	ServerPrivateKey *identity.PrivateKey
+
+	KEXMethods     []handshake.KEXMethod
+	PaddingMethods []PaddingMethod
+	AuthPolicy     AuthPolicy
+
+	ReplayFilter handshake.ReplayFilter
 
 	// PaddingParamFn is the function called at handshake time to obtain the
 	// per-connection padding parameters used to instantiate the server side
@@ -97,12 +100,10 @@ func (c *ServerConn) Handshake(conn net.Conn) (err error) {
 		return
 	}
 
-	shouldAuth := false
-
 	// Build the response extData.
 	respExtData := make([]byte, 0, minRespExtDataSize+len(paddingParams))
 	respExtData = append(respExtData, ProtocolVersion)
-	respExtData = append(respExtData, 0) // XXX: AuthPolicy
+	respExtData = append(respExtData, byte(c.config.AuthPolicy))
 	respExtData = append(respExtData, byte(paddingMethod))
 	respExtData = append(respExtData, paddingParams...)
 
@@ -136,7 +137,7 @@ func (c *ServerConn) Handshake(conn net.Conn) (err error) {
 	}
 
 	// Authenticate the client if needed.
-	if shouldAuth {
+	if c.config.AuthPolicy == AuthMust {
 		if err = c.authenticate(keys.TranscriptDigest); err != nil {
 			return
 		}

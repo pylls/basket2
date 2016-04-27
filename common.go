@@ -78,6 +78,17 @@ type paddingImpl interface {
 	OnClose()
 }
 
+// AuthPolicy is the server authentication policy.
+type AuthPolicy byte
+
+const (
+	// AuthNone indicates that the client must not authenticate.
+	AuthNone AuthPolicy = iota
+
+	// AuthMust indicates that the client must authenticate.
+	AuthMust
+)
+
 type connState int
 
 const (

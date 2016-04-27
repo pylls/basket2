@@ -94,7 +94,7 @@ func (c *ClientConn) Handshake(conn net.Conn) (err error) {
 	if respExtData[0] != ProtocolVersion {
 		return ErrInvalidExtData
 	}
-	authPolicy := respExtData[1]
+	authPolicy := AuthPolicy(respExtData[1])
 	paddingMethod := PaddingMethod(respExtData[2])
 	paddingParams := respExtData[minRespExtDataSize:]
 
@@ -117,9 +117,7 @@ func (c *ClientConn) Handshake(conn net.Conn) (err error) {
 	}
 
 	// Authenticate if needed.
-	shouldAuth := false
-	_ = authPolicy // XXX: Transition to using this instead of shouldAuth
-	if shouldAuth {
+	if authPolicy == AuthMust {
 		if err = c.authenticate(keys.TranscriptDigest); err != nil {
 			return
 		}
@@ -139,8 +137,6 @@ func (c *ClientConn) authenticate(transcriptDigest []byte) error {
 	}
 
 	// Sign TranscriptDigest, and send the authentication request.
-
-	// Figure out how to invoke the padding algorithm for auth. :/
 
 	// Receive the authentication response.
 
