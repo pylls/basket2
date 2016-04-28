@@ -64,22 +64,29 @@ func (s *sipSource) Int63() int64 {
 }
 
 func (s *sipSource) Seed(seed int64) {
-	// This call is totally nonsensical since the system entropy pool is
-	// hit up for every single call.
+	// The seed value is totally ignored because the system entropy source is
+	// hit up on each call.  But, since the output is whitened via a
+	// random keyed SipHash-2-4 instance, re-randomize the key.
+	var key [16]byte
+
+	// Obtain a SipHash-2-4 key from the system entropy source.
+	if _, err := io.ReadFull(Reader, key[:]); err != nil {
+		panic("sipSource: failed to generate a key: " + err.Error())
+	}
+	defer crypto.Memwipe(key[:])
+
+	s.Lock()
+	defer s.Unlock()
+
+	s.h = siphash.New128(key[:]) // 128 bit output!
+	s.off = 0                    // Doesn't really matter, but why not.
+
 	return
 }
 
 func newSource() (rand.Source, error) {
-	var seed [16]byte
-
-	// Random key the SipHash-2-4 instance.
-	if _, err := io.ReadFull(Reader, seed[:]); err != nil {
-		return nil, err
-	}
-	defer crypto.Memwipe(seed[:])
-
 	s := new(sipSource)
-	s.h = siphash.New128(seed[:]) // 128 bit output!
+	s.Seed(0)
 	return s, nil
 }
 
