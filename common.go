@@ -32,6 +32,7 @@ import (
 	"sync"
 	"time"
 
+	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
 	"git.schwanenlied.me/yawning/basket2.git/framing"
 	"git.schwanenlied.me/yawning/basket2.git/framing/tentp"
 )
@@ -108,9 +109,10 @@ type commonConn struct {
 	conn     net.Conn
 	isClient bool
 
-	txEncoder *tentp.Encoder
-	rxDecoder *tentp.Decoder
-	impl      paddingImpl
+	txEncoder     *tentp.Encoder
+	rxDecoder     *tentp.Decoder
+	impl          paddingImpl
+	maxRecordSize int
 }
 
 // Conn returns the raw underlying net.Conn associated with the basket2
@@ -181,6 +183,62 @@ func (c *commonConn) SetReadDeadline(t time.Time) error {
 // SetWriteDeadline returns ErrNotSupported.
 func (c *commonConn) SetWriteDeadline(t time.Time) error {
 	return ErrNotSupported
+}
+
+func (c *commonConn) initConn(conn net.Conn) error {
+	var err error
+	if err = c.setState(stateHandshaking); err != nil {
+		return err
+	}
+
+	if c.mRNG, err = rand.New(); err != nil {
+		return err
+	}
+
+	// Derive the "max" record size based off the remote address,
+	// under the assumption that 1500 byte MTU ethernet is in use.
+	//
+	// This value is intended as a hint for the padding algorithms
+	// when determining how to size records, and may not actually
+	// resemble what goes out on the wire depending on what the kernel
+	// does and the state of the TCP/IP stack.
+	if taddr, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
+		if taddr.IP.To16() != nil {
+			// Connected to an IPv6 peer.
+			c.maxRecordSize = tentp.MaxIdealIPv6Size
+		} else {
+			// Commected to an IPv4 peer.
+			c.maxRecordSize = tentp.MaxIdealIPv4Size
+		}
+	} else {
+		// No idea what kind of connection this is, use the IPv4 max frame
+		// size.
+		c.maxRecordSize = tentp.MaxIdealIPv4Size
+	}
+	c.conn = conn
+
+	return nil
+}
+
+func (c *commonConn) initFraming(kdf io.Reader) error {
+	var err error
+
+	if c.isClient {
+		if c.txEncoder, err = tentp.NewEncoderFromKDF(kdf); err != nil {
+			return err
+		}
+		if c.rxDecoder, err = tentp.NewDecoderFromKDF(kdf); err != nil {
+			return err
+		}
+	} else {
+		if c.rxDecoder, err = tentp.NewDecoderFromKDF(kdf); err != nil {
+			return err
+		}
+		if c.txEncoder, err = tentp.NewEncoderFromKDF(kdf); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *commonConn) setState(newState connState) error {

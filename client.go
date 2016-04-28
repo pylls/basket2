@@ -21,7 +21,6 @@ import (
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
-	"git.schwanenlied.me/yawning/basket2.git/framing/tentp"
 	"git.schwanenlied.me/yawning/basket2.git/handshake"
 )
 
@@ -54,10 +53,11 @@ func (c *ClientConn) Handshake(conn net.Conn) (err error) {
 		}
 	}()
 
-	if err = c.setState(stateHandshaking); err != nil {
+	// Initalize the underlying conn structure, and transition to the
+	// handshaking state.
+	if err = c.initConn(conn); err != nil {
 		return
 	}
-	c.conn = conn
 
 	// Build the request extData to negotiate padding algorithms.
 	reqExtData := make([]byte, 0, 1+1+len(c.config.PaddingMethods))
@@ -104,10 +104,7 @@ func (c *ClientConn) Handshake(conn net.Conn) (err error) {
 	}
 
 	// Initialize the frame encoder/decoder with the session key material.
-	if c.txEncoder, err = tentp.NewEncoderFromKDF(keys.KDF); err != nil {
-		return
-	}
-	if c.rxDecoder, err = tentp.NewDecoderFromKDF(keys.KDF); err != nil {
+	if err = c.initFraming(keys.KDF); err != nil {
 		return
 	}
 
@@ -162,9 +159,6 @@ func NewClientConn(config *ClientConfig) (*ClientConn, error) {
 	c := new(ClientConn)
 	c.config = config
 	c.isClient = true
-	if c.mRNG, err = rand.New(); err != nil {
-		return nil, err
-	}
 	if c.handshakeState, err = handshake.NewClientHandshake(rand.Reader, config.KEXMethod, config.ServerPublicKey); err != nil {
 		return nil, err
 	}

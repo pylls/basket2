@@ -21,7 +21,6 @@ import (
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
-	"git.schwanenlied.me/yawning/basket2.git/framing/tentp"
 	"git.schwanenlied.me/yawning/basket2.git/handshake"
 )
 
@@ -63,10 +62,11 @@ func (c *ServerConn) Handshake(conn net.Conn) (err error) {
 		}
 	}()
 
-	if err = c.setState(stateHandshaking); err != nil {
+	// Initalize the underlying conn structure, and transition to the
+	// handshaking state.
+	if err = c.initConn(conn); err != nil {
 		return
 	}
-	c.conn = conn
 
 	// Receive the client's handshake request.
 	var reqExtData []byte
@@ -124,10 +124,7 @@ func (c *ServerConn) Handshake(conn net.Conn) (err error) {
 	defer keys.Reset()
 
 	// Initialize the frame decoder/encoder with the session key material.
-	if c.rxDecoder, err = tentp.NewDecoderFromKDF(keys.KDF); err != nil {
-		return
-	}
-	if c.txEncoder, err = tentp.NewEncoderFromKDF(keys.KDF); err != nil {
+	if err = c.initFraming(keys.KDF); err != nil {
 		return
 	}
 
@@ -189,9 +186,6 @@ func NewServerConn(config *ServerConfig) (*ServerConn, error) {
 	c := new(ServerConn)
 	c.config = config
 	c.isClient = false
-	if c.mRNG, err = rand.New(); err != nil {
-		return nil, err
-	}
 	if c.handshakeState, err = handshake.NewServerHandshake(rand.Reader, config.KEXMethods, config.ReplayFilter, config.ServerPrivateKey); err != nil {
 		return nil, err
 	}
