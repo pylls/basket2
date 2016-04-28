@@ -106,7 +106,7 @@ type commonConn struct {
 	mRNG  *mrand.Rand
 	state connState
 
-	conn     net.Conn
+	rawConn  net.Conn
 	isClient bool
 
 	txEncoder     *tentp.Encoder
@@ -118,7 +118,7 @@ type commonConn struct {
 // Conn returns the raw underlying net.Conn associated with the basket2
 // connection.
 func (c *commonConn) Conn() net.Conn {
-	return c.conn
+	return c.rawConn
 }
 
 // Write writes len(p) bytes to the stream, and returns the number of bytes
@@ -154,7 +154,7 @@ func (c *commonConn) Read(p []byte) (n int, err error) {
 // Close closes the connection and purges cryptographic keying material from
 // memory.
 func (c *commonConn) Close() error {
-	err := c.conn.Close()
+	err := c.rawConn.Close()
 	c.setState(stateError)
 
 	return err
@@ -162,12 +162,12 @@ func (c *commonConn) Close() error {
 
 // LocalAddr returns the local address of the connection.
 func (c *commonConn) LocalAddr() net.Addr {
-	return c.conn.LocalAddr()
+	return c.rawConn.LocalAddr()
 }
 
 // RemoteAddr returns the remote address of the connection.
 func (c *commonConn) RemoteAddr() net.Addr {
-	return c.conn.RemoteAddr()
+	return c.rawConn.RemoteAddr()
 }
 
 // SetDeadline returns ErrNotSupported.
@@ -215,7 +215,7 @@ func (c *commonConn) initConn(conn net.Conn) error {
 		// size.
 		c.maxRecordSize = tentp.MaxIdealIPv4Size
 	}
-	c.conn = conn
+	c.rawConn = conn
 
 	return nil
 }
@@ -303,7 +303,7 @@ func (c *commonConn) setPadding(method PaddingMethod, params []byte) error {
 }
 
 func (c *commonConn) setNagle(enable bool) {
-	if tconn, ok := c.conn.(*net.TCPConn); ok {
+	if tconn, ok := c.rawConn.(*net.TCPConn); ok {
 		tconn.SetNoDelay(!enable)
 	}
 }
@@ -335,7 +335,7 @@ func (c *commonConn) SendRawRecord(cmd byte, msg []byte, padLen int) (err error)
 
 	// Transmit the record.
 	var n int
-	n, err = c.conn.Write(rec)
+	n, err = c.rawConn.Write(rec)
 	if err != nil {
 		return
 	}
@@ -364,7 +364,7 @@ func (c *commonConn) RecvRawRecord() (cmd byte, msg []byte, err error) {
 
 	// Receive/Decode the TENTP header.
 	var recHdr [tentp.FramingOverhead]byte
-	if _, err = io.ReadFull(c.conn, recHdr[:]); err != nil {
+	if _, err = io.ReadFull(c.rawConn, recHdr[:]); err != nil {
 		return
 	}
 	var want int
@@ -387,7 +387,7 @@ func (c *commonConn) RecvRawRecord() (cmd byte, msg []byte, err error) {
 
 	// Receive/Decode the TENTP record body.
 	recBody := make([]byte, want)
-	if _, err = io.ReadFull(c.conn, recBody); err != nil {
+	if _, err = io.ReadFull(c.rawConn, recBody); err != nil {
 		return
 	}
 	if msg, err = c.rxDecoder.DecodeRecordBody(recBody); err != nil {

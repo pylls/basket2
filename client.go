@@ -81,7 +81,7 @@ func (c *ClientConn) Handshake(conn net.Conn) (err error) {
 	// Send the request, receive the response, and derive the session keys.
 	var keys *handshake.SessionKeys
 	var respExtData []byte
-	if keys, respExtData, err = c.handshakeState.Handshake(c.conn, reqExtData, padLen); err != nil {
+	if keys, respExtData, err = c.handshakeState.Handshake(c.rawConn, reqExtData, padLen); err != nil {
 		return
 	}
 	defer keys.Reset()
