@@ -100,5 +100,11 @@ func (c *nullPadding) OnClose() {
 func newNullPadding(conn *commonConn) paddingImpl {
 	c := new(nullPadding)
 	c.conn = conn
+
+	// The net package default beahvior is to disable Nagle's algorithm,
+	// but it's more efficient to enable it, since the kernel will handle
+	// framing better than we can, especially for this use case.
+	conn.setNagle(true)
+
 	return c
 }

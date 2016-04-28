@@ -292,6 +292,22 @@ func (c *commonConn) stateAllowsIO() bool {
 	return c.state == stateAuthenticate || c.state == stateEstablished
 }
 
+func (c *commonConn) setPadding(method PaddingMethod, params []byte) error {
+	switch method {
+	case PaddingNull:
+		c.impl = newNullPadding(c)
+	default:
+		return ErrInvalidPadding
+	}
+	return nil
+}
+
+func (c *commonConn) setNagle(enable bool) {
+	if tconn, ok := c.conn.(*net.TCPConn); ok {
+		tconn.SetNoDelay(!enable)
+	}
+}
+
 // SendRawRecord sends a raw record to the peer with the specified command,
 // payload and padding length.  This call should NOT be interleaved/mixed
 // with the net.Conn Read/Write interface.
@@ -328,16 +344,6 @@ func (c *commonConn) SendRawRecord(cmd byte, msg []byte, padLen int) (err error)
 	}
 
 	return
-}
-
-func (c *commonConn) setPadding(method PaddingMethod, params []byte) error {
-	switch method {
-	case PaddingNull:
-		c.impl = newNullPadding(c)
-	default:
-		return ErrInvalidPadding
-	}
-	return nil
 }
 
 // RecvRawRecord receives a raw record from the peer.  This call should NOT be
