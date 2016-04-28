@@ -19,16 +19,18 @@
 package identity
 
 import (
+	gocrypto "crypto"
 	"encoding/pem"
 	"errors"
 	"io"
 	"runtime"
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
+	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
+	"git.schwanenlied.me/yawning/basket2.git/ext/extra25519"
 
-	"github.com/agl/ed25519"
-	"github.com/agl/ed25519/extra25519"
 	"golang.org/x/crypto/curve25519"
+	"golang.org/x/crypto/ed25519"
 )
 
 const (
@@ -65,7 +67,7 @@ var (
 // PrivateKey is a EdDSA private key and it's X25519 counterpart.
 type PrivateKey struct {
 	PublicKey
-	DSAPrivateKey *[PrivateKeySize]byte
+	DSAPrivateKey ed25519.PrivateKey
 	KEXPrivateKey [32]byte
 }
 
@@ -80,17 +82,18 @@ func (k *PrivateKey) ScalarMult(secret *[SharedSecretSize]byte, publicKey *[Publ
 }
 
 // Sign signs a message and returns a signature.
-func (k *PrivateKey) Sign(message []byte) *[SignatureSize]byte {
-	return ed25519.Sign(k.DSAPrivateKey, message)
+func (k *PrivateKey) Sign(message []byte) []byte {
+	sig, err := k.DSAPrivateKey.Sign(rand.Reader, message, gocrypto.Hash(0))
+	if err != nil {
+		panic("identity: failed to sign: " + err.Error())
+	}
+	return sig
 }
 
 // Reset sanitizes private values from the PrivateKey such that they no longer
 // appear in memory.
 func (k *PrivateKey) Reset() {
-	if k.DSAPrivateKey != nil {
-		crypto.Memwipe(k.DSAPrivateKey[:])
-		k.DSAPrivateKey = nil
-	}
+	crypto.Memwipe(k.DSAPrivateKey)
 	crypto.Memwipe(k.KEXPrivateKey[:])
 }
 
@@ -98,7 +101,7 @@ func (k *PrivateKey) Reset() {
 func (k *PrivateKey) ToPEM() []byte {
 	block := &pem.Block{
 		Type:  privateKeyPEMType,
-		Bytes: k.DSAPrivateKey[:],
+		Bytes: k.DSAPrivateKey,
 	}
 	return pem.EncodeToMemory(block)
 }
@@ -147,7 +150,7 @@ func PrivateKeyFromPEM(b []byte) (*PrivateKey, error) {
 	if block.Type != privateKeyPEMType {
 		return nil, ErrInvalidKey
 	}
-	defer crypto.Memwipe(block.Bytes[:])
+	defer crypto.Memwipe(block.Bytes)
 	// XXX: Just ignore trailing bullshit?
 	return PrivateKeyFromBytes(block.Bytes)
 }
@@ -159,10 +162,10 @@ func PrivateKeyFromBytes(b []byte) (*PrivateKey, error) {
 	}
 
 	k := new(PrivateKey)
-	k.DSAPrivateKey = new([PrivateKeySize]byte)
-	copy(k.DSAPrivateKey[:], b)
-	k.PublicKey.DSAPublicKey = new([PublicKeySize]byte)
-	copy(k.PublicKey.DSAPublicKey[:], k.DSAPrivateKey[32:])
+	k.DSAPrivateKey = make([]byte, ed25519.PrivateKeySize)
+	k.PublicKey.DSAPublicKey = make([]byte, ed25519.PublicKeySize)
+	copy(k.DSAPrivateKey, b)
+	copy(k.PublicKey.DSAPublicKey, k.DSAPrivateKey[32:])
 	if err := k.toCurve25519(); err != nil {
 		k.Reset()
 		return nil, err
@@ -176,12 +179,12 @@ func finalizePrivateKey(k *PrivateKey) {
 
 // PublicKey is a EdDSA public key and it's X25519 counterpart.
 type PublicKey struct {
-	DSAPublicKey *[PublicKeySize]byte
+	DSAPublicKey ed25519.PublicKey
 	KEXPublicKey [PublicKeySize]byte
 }
 
 // Verify returns true iff sig is a valid signature of message.
-func (k *PublicKey) Verify(message []byte, sig *[SignatureSize]byte) bool {
+func (k *PublicKey) Verify(message []byte, sig []byte) bool {
 	return ed25519.Verify(k.DSAPublicKey, message, sig)
 }
 
@@ -197,7 +200,7 @@ func (k *PublicKey) toCurve25519() error {
 func (k *PublicKey) ToPEM() []byte {
 	block := &pem.Block{
 		Type:  publicKeyPEMType,
-		Bytes: k.DSAPublicKey[:],
+		Bytes: k.DSAPublicKey,
 	}
 	return pem.EncodeToMemory(block)
 }
@@ -222,8 +225,8 @@ func PublicKeyFromBytes(b []byte) (*PublicKey, error) {
 	}
 
 	k := new(PublicKey)
-	k.DSAPublicKey = new([PublicKeySize]byte)
-	copy(k.DSAPublicKey[:], b)
+	k.DSAPublicKey = make([]byte, ed25519.PublicKeySize)
+	copy(k.DSAPublicKey, b)
 	if err := k.toCurve25519(); err != nil {
 		return nil, err
 	}

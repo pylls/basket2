@@ -22,8 +22,7 @@ Features:
 Dependencies:
 
  * Go 1.6.x or later - (May work with older versions, don't care if they don't)
- * golang.org/x/crypto - SHA3, Curve25519, Poly1305
- * github.com/agl/ed25519 - Ed25519, Edwards curve field arithmatic
+ * golang.org/x/crypto - SHA3, Curve25519, Ed25519, Poly1305
  * github.com/dchest/siphash - SipHash-2-4
  * git.schwanenlied.me/yawning/a2filter.git - Active-Active Bloom Filter
  * git.schwanenlied.me/yawning/chacha20.git - (X)ChaCha20
@@ -54,9 +53,6 @@ Notes:
  * The post-quantum cryptography does not apply to active attackers in
    posession of a quantum computer, and only will protect pre-existing data
    from later decryption.
-
- * Yeah, this uses SHA3 instead of whatever trendy BLAKE variant kids like
-   these days.  SHAKE is love, SHAKE is life.
 
  * If your system has busted PMTUD, this probably won't work at all.  Not my
    problem.  Complain to your OS vendor.
