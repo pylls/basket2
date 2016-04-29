@@ -218,9 +218,11 @@ func newClientObfs(rand io.Reader, serverPublicKey *identity.PublicKey) (*client
 type serverObfsCtx struct {
 	clientPublicKey [32]byte
 
-	keypair          *identity.PrivateKey
-	keyHash          sha3.ShakeHash
-	tHash            hash.Hash
+	keypair      *identity.PrivateKey
+	keyHash      sha3.ShakeHash
+	tHash        hash.Hash
+	sharedSecret [32]byte
+
 	transcriptDigest [32]byte
 
 	replay ReplayFilter
@@ -232,6 +234,7 @@ func (o *serverObfsCtx) reset() {
 	if o.keyHash != nil {
 		o.keyHash.Reset()
 	}
+	crypto.Memwipe(o.sharedSecret[:])
 }
 
 func (o *serverObfsCtx) recvHandshakeReq(r io.Reader) ([]byte, error) {
@@ -285,12 +288,10 @@ func (o *serverObfsCtx) recvHandshakeReq(r io.Reader) ([]byte, error) {
 
 	// Calculate the shared secret, with the client's representative and our
 	// long term private key.
-	var sharedSecret [32]byte
 	elligator2.RepresentativeToPublicKey(&o.clientPublicKey, &repr)
-	if !o.keypair.ScalarMult(&sharedSecret, &o.clientPublicKey) {
+	if !o.keypair.ScalarMult(&o.sharedSecret, &o.clientPublicKey) {
 		return nil, ErrInvalidPoint
 	}
-	defer crypto.Memwipe(sharedSecret[:])
 
 	// Derive the handshake symmetric keys, and initialize the frame decoder
 	// used to decode the handshake request.  As this function is split,
@@ -298,7 +299,7 @@ func (o *serverObfsCtx) recvHandshakeReq(r io.Reader) ([]byte, error) {
 	// sent.
 	o.keyHash = sha3.NewShake256()
 	o.keyHash.Write(obfsKdfTweak)
-	o.keyHash.Write(sharedSecret[:])
+	o.keyHash.Write(o.sharedSecret[:])
 	o.keyHash.Write(mac[:]) // Include the MAC in the KDF input.
 	dec, err := tentp.NewDecoderFromKDF(o.keyHash)
 	if err != nil {

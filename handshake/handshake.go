@@ -80,13 +80,14 @@ func (k *SessionKeys) Reset() {
 	crypto.Memwipe(k.TranscriptDigest)
 }
 
-func newSessionKeys(transcriptDigest, xSecret, nhSecret []byte) *SessionKeys {
+func newSessionKeys(transcriptDigest, oSecret, xSecret, nhSecret []byte) *SessionKeys {
 	k := new(SessionKeys)
 
-	// Alice: SHAKE256(tweak | EXP(x,Y) | NewHopeA(sk, BobPK) | transcriptDigest)
-	// Bob: SHAKE256(tweak | EXP(y,X) | NewHopeB(AlicePK) | transcriptDigest)
+	// Alice: SHAKE256(tweak | EXP(a,B) | EXP(x,Y) | NewHopeA(sk, BobPK) | transcriptDigest)
+	// Bob: SHAKE256(tweak | EXP(b,A) EXP(y,X) | NewHopeB(AlicePK) | transcriptDigest)
 	kdf := sha3.NewShake256()
 	kdf.Write(handshakeKdfTweak)
+	kdf.Write(oSecret)
 	kdf.Write(xSecret)
 	kdf.Write(nhSecret)
 	kdf.Write(transcriptDigest)

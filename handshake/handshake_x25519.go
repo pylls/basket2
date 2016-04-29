@@ -96,7 +96,7 @@ func (c *ClientHandshake) handshakeX25519(rw io.ReadWriter, extData []byte, padL
 	}
 	defer crypto.Memwipe(nhSharedSecret)
 
-	k := newSessionKeys(c.obfs.transcriptDigest[:], xSharedSecret[:], nhSharedSecret)
+	k := newSessionKeys(c.obfs.transcriptDigest[:], c.obfs.sharedSecret[:], xSharedSecret[:], nhSharedSecret)
 
 	return k, respBlob[x25519RespSize:], nil
 }
@@ -165,7 +165,7 @@ func (s *ServerHandshake) sendRespX25519(rw io.ReadWriter, extData []byte, padLe
 	}
 
 	// Derive the session keys.
-	k := newSessionKeys(s.obfs.transcriptDigest[:], xSharedSecret[:], nhSharedSecret)
+	k := newSessionKeys(s.obfs.transcriptDigest[:], s.obfs.sharedSecret[:], xSharedSecret[:], nhSharedSecret)
 
 	return k, nil
 }
