@@ -53,24 +53,24 @@ type ServerConn struct {
 // Handshake associates a ServerConn with an established net.Conn, and executes
 // the authenticated/encrypted/obfuscated key exchange, and optionally
 // authenticates the client.
-func (c *ServerConn) Handshake(conn net.Conn) (err error) {
+func (s *ServerConn) Handshake(conn net.Conn) (err error) {
 	// Pass or fail, obliterate the handshake state.
-	defer c.handshakeState.Reset()
+	defer s.handshakeState.Reset()
 	defer func() {
 		if err != nil {
-			c.setState(stateError)
+			s.setState(stateError)
 		}
 	}()
 
 	// Initalize the underlying conn structure, and transition to the
 	// handshaking state.
-	if err = c.initConn(conn); err != nil {
+	if err = s.initConn(conn); err != nil {
 		return
 	}
 
 	// Receive the client's handshake request.
 	var reqExtData []byte
-	if reqExtData, err = c.handshakeState.RecvHandshakeReq(c.rawConn); err != nil {
+	if reqExtData, err = s.handshakeState.RecvHandshakeReq(s.rawConn); err != nil {
 		return
 	}
 
@@ -87,7 +87,7 @@ func (c *ServerConn) Handshake(conn net.Conn) (err error) {
 	}
 	paddingMethod := paddingInvalid
 	for _, v := range reqExtData[2:] {
-		if paddingOk(PaddingMethod(v), c.config.PaddingMethods) {
+		if paddingOk(PaddingMethod(v), s.config.PaddingMethods) {
 			paddingMethod = PaddingMethod(v)
 			break
 		}
@@ -96,14 +96,14 @@ func (c *ServerConn) Handshake(conn net.Conn) (err error) {
 		return ErrInvalidPadding
 	}
 	var paddingParams []byte
-	if paddingParams, err = c.config.PaddingParamFn(paddingMethod); err != nil {
+	if paddingParams, err = s.config.PaddingParamFn(paddingMethod); err != nil {
 		return
 	}
 
 	// Build the response extData.
 	respExtData := make([]byte, 0, minRespExtDataSize+len(paddingParams))
 	respExtData = append(respExtData, ProtocolVersion)
-	respExtData = append(respExtData, byte(c.config.AuthPolicy))
+	respExtData = append(respExtData, byte(s.config.AuthPolicy))
 	respExtData = append(respExtData, byte(paddingMethod))
 	respExtData = append(respExtData, paddingParams...)
 
@@ -114,42 +114,42 @@ func (c *ServerConn) Handshake(conn net.Conn) (err error) {
 	if padLen < 0 { // Should never happen.
 		panic("basket2: handshake response exceeds payload capacity")
 	}
-	padLen += c.mRNG.Intn(maxHandshakeSize - minHandshakeSize)
+	padLen += s.mRNG.Intn(maxHandshakeSize - minHandshakeSize)
 
 	// Send the handshake response and derive the session keys.
 	var keys *handshake.SessionKeys
-	if keys, err = c.handshakeState.SendHandshakeResp(c.rawConn, respExtData, padLen); err != nil {
+	if keys, err = s.handshakeState.SendHandshakeResp(s.rawConn, respExtData, padLen); err != nil {
 		return
 	}
 	defer keys.Reset()
 
 	// Initialize the frame decoder/encoder with the session key material.
-	if err = c.initFraming(keys.KDF); err != nil {
+	if err = s.initFraming(keys.KDF); err != nil {
 		return
 	}
 
 	// Bring the chosen padding algorithm online.
-	if err = c.setPadding(paddingMethod, paddingParams); err != nil {
+	if err = s.setPadding(paddingMethod, paddingParams); err != nil {
 		return
 	}
 
 	// Authenticate the client if needed.
-	if c.config.AuthPolicy == AuthMust {
-		if err = c.authenticate(keys.TranscriptDigest); err != nil {
+	if s.config.AuthPolicy == AuthMust {
+		if err = s.authenticate(keys.TranscriptDigest); err != nil {
 			return
 		}
 	}
 
 	// The connection is now fully established.
-	if err = c.setState(stateEstablished); err != nil {
+	if err = s.setState(stateEstablished); err != nil {
 		return
 	}
 
 	return nil
 }
 
-func (c *ServerConn) authenticate(transcriptDigest []byte) error {
-	if err := c.setState(stateAuthenticate); err != nil {
+func (s *ServerConn) authenticate(transcriptDigest []byte) error {
+	if err := s.setState(stateAuthenticate); err != nil {
 		return err
 	}
 
@@ -183,14 +183,14 @@ func NewServerConn(config *ServerConfig) (*ServerConn, error) {
 		config.PaddingParamFn = defaultPaddingParams
 	}
 
-	c := new(ServerConn)
-	c.config = config
-	c.isClient = false
-	if c.handshakeState, err = handshake.NewServerHandshake(rand.Reader, config.KEXMethods, config.ReplayFilter, config.ServerPrivateKey); err != nil {
+	s := new(ServerConn)
+	s.config = config
+	s.isClient = false
+	if s.handshakeState, err = handshake.NewServerHandshake(rand.Reader, config.KEXMethods, config.ReplayFilter, config.ServerPrivateKey); err != nil {
 		return nil, err
 	}
 
-	return c, nil
+	return s, nil
 }
 
 var _ net.Conn = (*ServerConn)(nil)

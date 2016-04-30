@@ -113,7 +113,7 @@ func (s *ServerHandshake) parseReqX25519() ([]byte, error) {
 	return s.reqBlob[x25519ReqSize:], nil
 }
 
-func (s *ServerHandshake) sendRespX25519(rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, error) {
+func (s *ServerHandshake) sendRespX25519(w io.Writer, extData []byte, padLen int) (*SessionKeys, error) {
 	if s.kexMethod != X25519NewHope {
 		panic("handshake: expected X25519")
 	}
@@ -160,7 +160,7 @@ func (s *ServerHandshake) sendRespX25519(rw io.ReadWriter, extData []byte, padLe
 	// Normalize the pre-padding response length with the X448 pre-padding
 	// response length.
 	padLen += x25519RespPadNormSize
-	if err := s.obfs.sendHandshakeResp(rw, respBlob, padLen); err != nil {
+	if err := s.obfs.sendHandshakeResp(w, respBlob, padLen); err != nil {
 		return nil, err
 	}
 

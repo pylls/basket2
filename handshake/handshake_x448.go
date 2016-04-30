@@ -116,7 +116,7 @@ func (s *ServerHandshake) parseReqX448() ([]byte, error) {
 	return s.reqBlob[x448ReqSize:], nil
 }
 
-func (s *ServerHandshake) sendRespX448(rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, error) {
+func (s *ServerHandshake) sendRespX448(w io.Writer, extData []byte, padLen int) (*SessionKeys, error) {
 	if s.kexMethod != X448NewHope {
 		panic("handshake: expected X448")
 	}
@@ -159,7 +159,7 @@ func (s *ServerHandshake) sendRespX448(rw io.ReadWriter, extData []byte, padLen 
 
 	// Append the extData and dispatch the response.
 	respBlob = append(respBlob, extData...)
-	if err := s.obfs.sendHandshakeResp(rw, respBlob, padLen); err != nil {
+	if err := s.obfs.sendHandshakeResp(w, respBlob, padLen); err != nil {
 		return nil, err
 	}
 
