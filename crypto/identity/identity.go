@@ -27,7 +27,7 @@ import (
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
-	"git.schwanenlied.me/yawning/basket2.git/ext/extra25519"
+	"git.schwanenlied.me/yawning/basket2.git/ext/x25519"
 
 	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/ed25519"
@@ -107,7 +107,7 @@ func (k *PrivateKey) ToPEM() []byte {
 }
 
 func (k *PrivateKey) toCurve25519() error {
-	extra25519.PrivateKeyToCurve25519(&k.KEXPrivateKey, k.DSAPrivateKey)
+	x25519.PrivateKeyToCurve25519(&k.KEXPrivateKey, k.DSAPrivateKey)
 	return k.PublicKey.toCurve25519()
 }
 
@@ -189,7 +189,7 @@ func (k *PublicKey) Verify(message []byte, sig []byte) bool {
 }
 
 func (k *PublicKey) toCurve25519() error {
-	extra25519.PublicKeyToCurve25519(&k.KEXPublicKey, k.DSAPublicKey)
+	x25519.PublicKeyToCurve25519(&k.KEXPublicKey, k.DSAPublicKey)
 	if !crypto.MemIsZero(k.KEXPublicKey[:]) {
 		return nil
 	}

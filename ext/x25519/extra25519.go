@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package extra25519
+package x25519
 
 import (
 	"crypto/sha512"
 
-	"git.schwanenlied.me/yawning/basket2.git/ext/elligator2/edwards25519"
+	"git.schwanenlied.me/yawning/basket2.git/ext/x25519/edwards25519"
 )
 
 // PrivateKeyToCurve25519 converts an ed25519 private key into a corresponding

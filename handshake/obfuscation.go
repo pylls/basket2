@@ -26,7 +26,7 @@ import (
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
-	"git.schwanenlied.me/yawning/basket2.git/ext/elligator2"
+	"git.schwanenlied.me/yawning/basket2.git/ext/x25519/elligator2"
 	"git.schwanenlied.me/yawning/basket2.git/framing"
 	"git.schwanenlied.me/yawning/basket2.git/framing/tentp"
 
