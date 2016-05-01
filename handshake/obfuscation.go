@@ -160,7 +160,9 @@ func (o *clientObfsCtx) handshake(rw io.ReadWriter, msg []byte, padLen int) ([]b
 	// Receive/Decode the peer's response payload body.
 	//
 	// By virtue of this succeding, the server can be considered authenticated
-	// as they know the private component of serverPublicKey.
+	// as they know the private component of serverPublicKey.  The concern
+	// in RFC 7748 regarding multiple public keys producing the same shared
+	// secret is addressed by including the MAC in the KDF input.
 	//
 	// Note: ~128 bits classical security for the authentication.  You lose
 	// if they have a quantum computer and are mounting a man in the middle

@@ -63,7 +63,9 @@ var (
 	newhopeRandTweak  = []byte("basket2-newhope-tweak")
 )
 
-// SessionKeys is the handshake output.
+// SessionKeys is the handshake output.  It is safe to assume contributatory
+// behavior from both parties in the KDF output and the handshake transcript
+// digest, as points of small order are explicitly rejected.
 type SessionKeys struct {
 	// KDF is the key derivation function initialized with handshake output.
 	KDF io.Reader
