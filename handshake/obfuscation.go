@@ -109,6 +109,7 @@ func (o *clientObfsCtx) handshake(rw io.ReadWriter, msg []byte, padLen int) ([]b
 	keyHash := sha3.NewShake256()
 	defer keyHash.Reset()
 	keyHash.Write(obfsKdfTweak)
+	keyHash.Write(o.serverPublicKey.KEXPublicKey[:])
 	keyHash.Write(o.sharedSecret[:])
 	keyHash.Write(reqBlob[32:64]) // Include the MAC in the KDF input.
 
@@ -162,7 +163,8 @@ func (o *clientObfsCtx) handshake(rw io.ReadWriter, msg []byte, padLen int) ([]b
 	// By virtue of this succeding, the server can be considered authenticated
 	// as they know the private component of serverPublicKey.  The concern
 	// in RFC 7748 regarding multiple public keys producing the same shared
-	// secret is addressed by including the MAC in the KDF input.
+	// secret is addressed by including the server's public key and MAC in
+	// the KDF input.
 	//
 	// Note: ~128 bits classical security for the authentication.  You lose
 	// if they have a quantum computer and are mounting a man in the middle
@@ -304,6 +306,7 @@ func (o *serverObfsCtx) recvHandshakeReq(r io.Reader) ([]byte, error) {
 	// sent.
 	o.keyHash = sha3.NewShake256()
 	o.keyHash.Write(obfsKdfTweak)
+	o.keyHash.Write(o.keypair.KEXPublicKey[:])
 	o.keyHash.Write(o.sharedSecret[:])
 	o.keyHash.Write(mac[:]) // Include the MAC in the KDF input.
 	dec, err := tentp.NewDecoderFromKDF(o.keyHash)
