@@ -72,11 +72,11 @@ func (c *ClientConn) Handshake(conn net.Conn) (err error) {
 	// adding a random amount of padding.
 	//
 	// All requests on the wire will be of length [min, max).
-	padLen := minHandshakeSize - (handshake.MessageSize + len(reqExtData))
+	padLen := handshake.MinHandshakeSize - (handshake.MessageSize + len(reqExtData))
 	if padLen < 0 { // Should never happen.
 		panic("basket2: handshake request exceeds payload capacity")
 	}
-	padLen += c.mRNG.Intn(maxHandshakeSize - minHandshakeSize)
+	padLen += c.mRNG.Intn(handshake.MaxHandshakeSize - handshake.MinHandshakeSize)
 
 	// Send the request, receive the response, and derive the session keys.
 	var keys *handshake.SessionKeys

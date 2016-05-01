@@ -41,6 +41,12 @@ const (
 	// without including user extData or padding (2146 bytes).
 	MessageSize = x448RespSize + obfsServerOverhead
 
+	// MinHandshakeSize is the minimum total handshake length.
+	MinHandshakeSize = 4096
+
+	// MaxHandshakeSize is the maximum total handshake length.
+	MaxHandshakeSize = 8192
+
 	minReqSize = 1 + 1
 )
 
@@ -199,8 +205,8 @@ type ServerHandshake struct {
 // RecvHandshakeReq receives and validates the client's handshake request and
 // returns the client's extData if any.  Callers are responsible for setting
 // timeouts as appropriate.
-func (s *ServerHandshake) RecvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
-	reqBlob, err := s.obfs.recvHandshakeReq(rw)
+func (s *ServerHandshake) RecvHandshakeReq(r io.Reader) ([]byte, error) {
+	reqBlob, err := s.obfs.recvHandshakeReq(r)
 	if err != nil {
 		return nil, err
 	}
@@ -233,14 +239,14 @@ func (s *ServerHandshake) RecvHandshakeReq(rw io.ReadWriter) ([]byte, error) {
 // extData is encrypted/authenticated without PFS.  Callers are responsible
 // for setting timeouts as appropriate.  Upon return, Reset will be called
 // automatically.
-func (s *ServerHandshake) SendHandshakeResp(rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, error) {
+func (s *ServerHandshake) SendHandshakeResp(w io.Writer, extData []byte, padLen int) (*SessionKeys, error) {
 	defer s.Reset()
 
 	switch s.kexMethod {
 	case X25519NewHope:
-		return s.sendRespX25519(rw, extData, padLen)
+		return s.sendRespX25519(w, extData, padLen)
 	case X448NewHope:
-		return s.sendRespX448(rw, extData, padLen)
+		return s.sendRespX448(w, extData, padLen)
 	default:
 		return nil, ErrInvalidKEXMethod
 	}

@@ -41,9 +41,6 @@ const (
 	// ProtocolVersion is the transport protocol version.
 	ProtocolVersion = 0
 
-	// XXX: Should I adjust these??  Maybe make them framesize based?
-	minHandshakeSize                 = 4096
-	maxHandshakeSize                 = 8192
 	minReqExtDataSize                = 1 + 1 + 1 // Version, nrPaddingAlgs, > 1 padding alg.
 	minRespExtDataSize               = 1 + 1 + 1 // Version, authPolicy, padding alg.
 	paddingInvalid     PaddingMethod = 0xff
@@ -61,6 +58,9 @@ var (
 	// compatible padding methods, or the server specifies a incompatible
 	// padding method.
 	ErrInvalidPadding = errors.New("basket2: invalid padding")
+
+	// ErrMsgSize is the error returned on a message size violation.
+	ErrMsgSize = errors.New("basket2: oversized message")
 
 	// ErrInvalidExtData is the error returned when the req/resp handshake
 	// extData is invalid.
@@ -106,13 +106,16 @@ type commonConn struct {
 	mRNG  *mrand.Rand
 	state connState
 
-	rawConn  net.Conn
-	isClient bool
+	rawConn net.Conn
 
-	txEncoder     *tentp.Encoder
-	rxDecoder     *tentp.Decoder
-	impl          paddingImpl
-	maxRecordSize int
+	txEncoder *tentp.Encoder
+	rxDecoder *tentp.Decoder
+	impl      paddingImpl
+
+	maxRecordSize     int
+	enforceRecordSize bool
+
+	isClient bool
 }
 
 // Conn returns the raw underlying net.Conn associated with the basket2
@@ -383,6 +386,9 @@ func (c *commonConn) RecvRawRecord() (cmd byte, msg []byte, err error) {
 	if want == 0 {
 		// Record with no payload, return early.
 		return
+	}
+	if c.enforceRecordSize && want > c.maxRecordSize {
+		return 0, nil, ErrMsgSize
 	}
 
 	// Receive/Decode the TENTP record body.

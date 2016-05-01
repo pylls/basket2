@@ -153,6 +153,9 @@ func (o *clientObfsCtx) handshake(rw io.ReadWriter, msg []byte, padLen int) ([]b
 		// This is technically valid, but is stupid, so disallow it.
 		return nil, ErrNoPayload
 	}
+	if want > MaxHandshakeSize-obfsServerOverhead {
+		return nil, ErrInvalidPayload
+	}
 
 	// Receive/Decode the peer's response payload body.
 	//
@@ -323,6 +326,9 @@ func (o *serverObfsCtx) recvHandshakeReq(r io.Reader) ([]byte, error) {
 	if want == 0 {
 		// This is technically valid, but is stupid, so disallow it.
 		return nil, ErrNoPayload
+	}
+	if want > MaxHandshakeSize-obfsClientOverhead {
+		return nil, ErrInvalidPayload
 	}
 
 	// Read/Decode client request body.
