@@ -121,7 +121,7 @@ func (s *serverState) connHandler(conn net.Conn) error {
 	defer func() {
 		// Shouldn't happen, but avoid killing the entire process on failure.
 		if r := recover(); r != nil {
-			log.Errorf("Recovering from serverHandler panic: %v", r)
+			log.Errorf("Recovering from server handler panic: %v", r)
 		}
 	}()
 

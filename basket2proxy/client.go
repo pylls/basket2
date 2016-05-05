@@ -17,16 +17,155 @@
 package main
 
 import (
+	"encoding/hex"
+	"fmt"
 	"net"
 	"net/url"
+	"strings"
+	"syscall"
+	"time"
 
+	"git.schwanenlied.me/yawning/basket2.git"
 	"git.schwanenlied.me/yawning/basket2.git/basket2proxy/internal/log"
+	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
+	"git.schwanenlied.me/yawning/basket2.git/handshake"
 
 	"git.torproject.org/pluggable-transports/goptlib.git"
 )
 
-func clientAcceptLoop(ln net.Listener, proxyURL *url.URL) {
+const (
+	clientHandshakeTimeout = time.Duration(60) * time.Second
+)
 
+type clientState struct {
+	ln       *pt.SocksListener
+	proxyURL *url.URL
+}
+
+func (s *clientState) parseBridgeArgs(args *pt.Args) (*basket2.ClientConfig, error) {
+	argStr, ok := args.Get(transportArg)
+	if !ok {
+		return nil, fmt.Errorf("required argument '%s' missing", transportArg)
+	}
+
+	splitArgs := strings.Split(argStr, ":")
+	if len(splitArgs) != 3 {
+		return nil, fmt.Errorf("failed to parse the argument")
+	}
+
+	// Validate the protocol version.
+	if splitArgs[0] != fmt.Sprintf("%X", basket2.ProtocolVersion) {
+		return nil, fmt.Errorf("invalid protocol version '%v'", splitArgs[0])
+	}
+
+	cfg := new(basket2.ClientConfig)
+
+	// Parse the supported KEXMethods, and pick the "best" one.
+	kexMethods, err := hex.DecodeString(splitArgs[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize KEX methods: %v", err)
+	}
+	for _, m := range kexMethods {
+		method := handshake.KEXMethod(m)
+		if handshake.IsSupportedMethod(method) {
+			cfg.KEXMethod = method
+			break
+		}
+	}
+	if !handshake.IsSupportedMethod(cfg.KEXMethod) {
+		return nil, fmt.Errorf("no compatible KEX methods")
+	}
+
+	// Parse out the bridge's identity key.
+	if cfg.ServerPublicKey, err = identity.PublicKeyFromString(splitArgs[2]); err != nil {
+		return nil, fmt.Errorf("failed to deserialize public key: %v", err)
+	}
+
+	return cfg, nil
+}
+
+func (s *clientState) acceptLoop() error {
+	defer s.ln.Close()
+
+	for {
+		conn, err := s.ln.AcceptSocks()
+		if err != nil {
+			if e, ok := err.(net.Error); ok && e.Temporary() {
+				continue
+			}
+			return err
+		}
+		go s.connHandler(conn)
+	}
+}
+
+func (s *clientState) connHandler(socksConn *pt.SocksConn) error {
+	termMon.OnHandlerStart()
+	defer termMon.OnHandlerFinish()
+	defer socksConn.Close()
+	defer func() {
+		// Shouldn't happen, but avoid killing the entire process on failure.
+		if r := recover(); r != nil {
+			log.Errorf("Recovering from client handler panic: %v", r)
+		}
+	}()
+
+	addrStr := log.ElideAddr(socksConn.Req.Target)
+	log.Infof("%s: New client connection", addrStr)
+
+	// Parse out the bridge arguments.
+	cfg, err := s.parseBridgeArgs(&socksConn.Req.Args)
+	if err != nil {
+		log.Errorf("%s: Invalid bridge line: %v", addrStr, err)
+		socksConn.Reject()
+		return err
+	}
+	cfg.PaddingMethods = append(cfg.PaddingMethods, defaultPaddingMethods...)
+
+	// Intialize the basket2 state.
+	bConn, err := basket2.NewClientConn(cfg)
+	if err != nil {
+		log.Errorf("%s: Failed to initialize bakset2 client conn: %v", addrStr, err)
+		socksConn.Reject()
+		return err
+	}
+
+	// XXX: Handle the proxy.
+
+	// Connect to the bridge.
+	conn, err := net.Dial("tcp", socksConn.Req.Target)
+	if err != nil {
+		log.Errorf("%s: Failed to connect to the bridge: %v", addrStr, log.ElideError(err))
+		socksConn.RejectReason(errorToSocksReplyCode(err))
+		return err
+	}
+	defer conn.Close()
+
+	log.Infof("%s: Connected to upstream", addrStr)
+
+	// Handshake.
+	if err = conn.SetDeadline(time.Now().Add(clientHandshakeTimeout)); err != nil {
+		socksConn.Reject()
+		return err
+	}
+	if err = bConn.Handshake(conn); err != nil {
+		log.Errorf("%s: Handshake failed: %v", addrStr, log.ElideError(err))
+		socksConn.RejectReason(errorToSocksReplyCode(err))
+		return err
+	}
+	if err = conn.SetDeadline(time.Time{}); err != nil {
+		socksConn.Reject()
+		return err
+	}
+
+	log.Infof("%s: Handshaked with peer", addrStr)
+
+	socksConn.Grant(nil)
+
+	// Shuffle bytes back and forth.
+	copyLoop(bConn, socksConn, addrStr)
+
+	return nil
 }
 
 func clientInit() []net.Listener {
@@ -49,16 +188,48 @@ func clientInit() []net.Listener {
 			continue
 		}
 
-		ln, err := pt.ListenSocks("tcp", socksAddr)
+		state := &clientState{
+			proxyURL: ci.ProxyURL,
+		}
+
+		state.ln, err = pt.ListenSocks("tcp", socksAddr)
 		if err != nil {
 			pt.CmethodError(name, err.Error())
 			continue
 		}
-		go clientAcceptLoop(ln, ci.ProxyURL)
-		pt.Cmethod(name, ln.Version(), ln.Addr())
-		listeners = append(listeners, ln)
+
+		go state.acceptLoop()
+
+		pt.Cmethod(name, state.ln.Version(), state.ln.Addr())
+		listeners = append(listeners, state.ln)
 	}
 	pt.CmethodsDone()
 
 	return listeners
+}
+
+func errorToSocksReplyCode(err error) byte {
+	opErr, ok := err.(*net.OpError)
+	if !ok {
+		return pt.SocksRepGeneralFailure
+	}
+
+	errno, ok := opErr.Err.(syscall.Errno)
+	if !ok {
+		return pt.SocksRepGeneralFailure
+	}
+	switch errno {
+	case syscall.EADDRNOTAVAIL:
+		return pt.SocksRepAddressNotSupported
+	case syscall.ETIMEDOUT:
+		return pt.SocksRepTTLExpired
+	case syscall.ENETUNREACH:
+		return pt.SocksRepNetworkUnreachable
+	case syscall.EHOSTUNREACH:
+		return pt.SocksRepHostUnreachable
+	case syscall.ECONNREFUSED, syscall.ECONNRESET:
+		return pt.SocksRepConnectionRefused
+	default:
+		return pt.SocksRepGeneralFailure
+	}
 }
