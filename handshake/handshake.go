@@ -61,6 +61,8 @@ var (
 
 	handshakeKdfTweak = []byte("basket2-handshake-v0-kdf-tweak")
 	newhopeRandTweak  = []byte("basket2-newhope-tweak")
+
+	supportedMethods map[KEXMethod]bool
 )
 
 // SessionKeys is the handshake output.  It is safe to assume contributatory
@@ -288,4 +290,15 @@ func NewServerHandshake(rand io.Reader, kexMethods []KEXMethod, replay ReplayFil
 	}
 
 	return s, nil
+}
+
+// IsSupportedMethod returns true iff the KEX method is supported.
+func IsSupportedMethod(m KEXMethod) bool {
+	return supportedMethods[m]
+}
+
+func init() {
+	supportedMethods = make(map[KEXMethod]bool)
+	supportedMethods[X25519NewHope] = true
+	supportedMethods[X448NewHope] = true
 }
