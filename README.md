@@ -57,10 +57,10 @@ Notes:
  * If your system has busted PMTUD, this probably won't work at all.  Not my
    problem.  Complain to your OS vendor.
 
- * This COULD have been based on Trevor Perin's noise protocol framework, but
-   I already had the framing layer design, didn't feel like bolting on PQFS
-   to someone else's protocol, and I had to click on street signs to view said
-   protocol's documentation.
+ * This could have been based on Trevor Perin's noise protocol framework, with
+   a decent amount of work and extensions, but certain properties and behavior
+   I need aren't formally specified yet.  This is something I will strongly
+   consider if/when I design basket3.
 
 TODO:
 
