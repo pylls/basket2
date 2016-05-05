@@ -20,6 +20,7 @@ package identity
 
 import (
 	gocrypto "crypto"
+	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"io"
@@ -216,6 +217,20 @@ func PublicKeyFromPEM(b []byte) (*PublicKey, error) {
 	}
 	// XXX: Just ignore trailing bullshit?
 	return PublicKeyFromBytes(block.Bytes)
+}
+
+// ToString serializes a public key to a string.
+func (k *PublicKey) ToString() string {
+	return base64.RawStdEncoding.EncodeToString(k.DSAPublicKey)
+}
+
+// PublicKeyFromString deserializes a string encoded public key.
+func PublicKeyFromString(s string) (*PublicKey, error) {
+	b, err := base64.RawStdEncoding.DecodeString(s)
+	if err != nil {
+		return nil, ErrInvalidKey
+	}
+	return PublicKeyFromBytes(b)
 }
 
 // PublicKeyFromBytes deserializes a public key.

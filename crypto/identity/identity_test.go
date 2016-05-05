@@ -86,4 +86,13 @@ func TestIdentity(t *testing.T) {
 	if err = comparePublic(&k0.PublicKey, pk3); err != nil {
 		t.Fatalf("PEM serialized PK: %v", err)
 	}
+
+	b64EncodedPk := pk2.ToString()
+	pk4, err := PublicKeyFromString(b64EncodedPk)
+	if err != nil {
+		t.Fatalf("failed to deserialize string public key: %v", err)
+	}
+	if err = comparePublic(&k0.PublicKey, pk4); err != nil {
+		t.Fatalf("String serialized PK: %v", err)
+	}
 }
