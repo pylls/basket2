@@ -35,7 +35,7 @@ type KEXMethod byte
 
 const (
 	// HandshakeVersion is the current handshake version.
-	HandshakeVersion = 0
+	HandshakeVersion = 1
 
 	// MessageSize is the length that all handshake messages get padded to,
 	// without including user extData or padding (2146 bytes).
@@ -59,7 +59,7 @@ var (
 	// is malformed.
 	ErrInvalidPayload = errors.New("handshake: invalid payload")
 
-	handshakeKdfTweak = []byte("basket2-handshake-v0-kdf-tweak")
+	handshakeKdfTweak = []byte("basket2-handshake-v1-kdf-tweak")
 	newhopeRandTweak  = []byte("basket2-newhope-tweak")
 
 	supportedMethods map[KEXMethod]bool

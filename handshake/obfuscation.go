@@ -40,9 +40,9 @@ const (
 )
 
 var (
-	obfsMACTweak   = []byte("basket2-obfs-v0-mac-tweak")
-	obfsKdfTweak   = []byte("basket2-obfs-v0-kdf-tweak")
-	obfsTransTweak = []byte("basket2-obfs-v0-transcript-tweak")
+	obfsMACTweak   = []byte("basket2-obfs-v1-mac-tweak")
+	obfsKdfTweak   = []byte("basket2-obfs-v1-kdf-tweak")
+	obfsTransTweak = []byte("basket2-obfs-v1-transcript-tweak")
 
 	// ErrInvalidPoint is the error returned when the handshake/obfuscation
 	// crypto fails due to the X25519 point not being on the curve or it's
