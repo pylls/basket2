@@ -17,15 +17,60 @@
 package proxyextras
 
 import (
+	"fmt"
+	"net"
+	"net/url"
+	"strconv"
 	"sync"
 
 	"golang.org/x/net/proxy"
 )
 
-func InitBackends() {
-	var once sync.Once
-	once.Do(func() {
-        proxy.RegisterDialerType("http", newHTTP)
+var initOnce sync.Once
+
+func IsURLValid(url *url.URL) bool {
+	initBackends()
+
+	switch url.Scheme {
+	case "http", "socks4a", "socks5":
+	default:
+		return false
+	}
+
+	if _, err := resolveAddrStr(url.Host); err != nil {
+		return false
+	}
+
+	return true
+}
+
+func resolveAddrStr(addrStr string) (*net.TCPAddr, error) {
+	ipStr, portStr, err := net.SplitHostPort(addrStr)
+	if err != nil {
+		return nil, err
+	}
+
+	if ipStr == "" {
+		return nil, net.InvalidAddrError(fmt.Sprintf("address string %q lacks a host part", addrStr))
+	}
+	if portStr == "" {
+		return nil, net.InvalidAddrError(fmt.Sprintf("address string %q lacks a port part", addrStr))
+	}
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return nil, net.InvalidAddrError(fmt.Sprintf("not an IP string: %q", ipStr))
+	}
+	port, err := strconv.ParseUint(portStr, 10, 16)
+	if err != nil {
+		return nil, net.InvalidAddrError(fmt.Sprintf("not a Port string: %q", portStr))
+	}
+
+	return &net.TCPAddr{IP: ip, Port: int(port), Zone: ""}, nil
+}
+
+func initBackends() {
+	initOnce.Do(func() {
+		proxy.RegisterDialerType("http", newHTTP)
 		proxy.RegisterDialerType("socks4a", newSOCKS4)
 	})
 }

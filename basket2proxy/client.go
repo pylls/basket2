@@ -192,9 +192,15 @@ func clientInit() []net.Listener {
 		return nil
 	}
 
-	// Assume for now that the proxy URL is well formed.
+	// Validate the Proxy URL.
 	if ci.ProxyURL != nil {
-		proxyextras.InitBackends()
+		if !proxyextras.IsURLValid(ci.ProxyURL) {
+			pt.ProxyError("proxy URL is invalid")
+
+			log.Errorf("Invalid proxy URL")
+
+			return nil
+		}
 		pt.ProxyDone()
 	}
 
