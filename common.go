@@ -46,6 +46,8 @@ const (
 
 	minReqExtDataSize  = 1 + 1 + 1 // Version, nrPaddingAlgs, > 1 padding alg.
 	minRespExtDataSize = 1 + 1 + 1 // Version, authPolicy, padding alg.
+
+	tauReadDelay = 5000 // Microseconds.
 )
 
 var (
@@ -116,6 +118,7 @@ type commonConn struct {
 
 	maxRecordSize     int
 	enforceRecordSize bool
+	enableReadDelay   bool
 
 	isClient bool
 }
@@ -153,7 +156,19 @@ func (c *commonConn) Read(p []byte) (n int, err error) {
 	if !c.stateAllowsIO() {
 		return 0, ErrInvalidState
 	}
-	return c.impl.Read(p)
+
+	n, err = c.impl.Read(p)
+	if c.enableReadDelay && n > 0 {
+		// If data payload was received and read delay is enabled,
+		// delay for a random interval [0, 2 * tau] usec.
+		//
+		// This is primarily intended for the server side of the Tor
+		// Pluggable transport code in an attempt to mitigate delay based
+		// flow tagging attacks for upstream traffic into the Tor network.
+		delay := time.Duration(c.mRNG.Intn(tauReadDelay*2)) * time.Microsecond
+		time.Sleep(delay)
+	}
+	return n, err
 }
 
 // Close closes the connection and purges cryptographic keying material from
