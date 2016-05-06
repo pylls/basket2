@@ -59,6 +59,7 @@ func (s *clientState) parseBridgeArgs(args *pt.Args) (*basket2.ClientConfig, err
 	}
 
 	cfg := new(basket2.ClientConfig)
+	cfg.KEXMethod = handshake.KEXInvalid
 
 	// Parse the supported KEXMethods, and pick the "best" one.
 	kexMethods, err := hex.DecodeString(splitArgs[1])
@@ -72,7 +73,7 @@ func (s *clientState) parseBridgeArgs(args *pt.Args) (*basket2.ClientConfig, err
 			break
 		}
 	}
-	if !handshake.IsSupportedMethod(cfg.KEXMethod) {
+	if cfg.KEXMethod == handshake.KEXInvalid {
 		return nil, fmt.Errorf("no compatible KEX methods")
 	}
 
@@ -141,7 +142,7 @@ func (s *clientState) connHandler(socksConn *pt.SocksConn) error {
 	}
 	defer conn.Close()
 
-	log.Infof("%s: Connected to upstream", addrStr)
+	log.Debugf("%s: Connected to upstream", addrStr)
 
 	// Handshake.
 	if err = conn.SetDeadline(time.Now().Add(clientHandshakeTimeout)); err != nil {
@@ -158,9 +159,12 @@ func (s *clientState) connHandler(socksConn *pt.SocksConn) error {
 		return err
 	}
 
-	log.Infof("%s: Handshaked with peer", addrStr)
+	log.Debugf("%s: Handshaked with peer", addrStr)
 
-	socksConn.Grant(nil)
+	// Signal to the client that the connection is ready for traffic.
+	if err = socksConn.Grant(nil); err != nil {
+		return err
+	}
 
 	// Shuffle bytes back and forth.
 	copyLoop(bConn, socksConn, addrStr)

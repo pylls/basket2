@@ -18,9 +18,11 @@
 package log
 
 import (
+	"flag"
 	"fmt"
 	golog "log"
 	"net"
+	"strings"
 )
 
 const (
@@ -50,6 +52,24 @@ var (
 func SetLogger(l *golog.Logger) {
 	logger = l
 	enableLogging = (l != nil)
+}
+
+// SetLogLevel sets the log level to the value indicated by the given string
+// (case-insensitive).
+func SetLogLevel(logLevelStr string) error {
+	switch strings.ToUpper(logLevelStr) {
+	case "ERROR":
+		logLevel = LevelError
+	case "WARN":
+		logLevel = LevelWarn
+	case "INFO":
+		logLevel = LevelInfo
+	case "DEBUG":
+		logLevel = LevelDebug
+	default:
+		return fmt.Errorf("invalid log level '%s'", logLevelStr)
+	}
+	return nil
 }
 
 // Noticef logs the given format string/arguments at the NOTICE log level.
@@ -145,4 +165,8 @@ func ElideAddr(addrStr string) string {
 		return elidedAddr + ":" + port
 	}
 	return elidedAddr
+}
+
+func init() {
+	flag.BoolVar(&unsafeLogging, "unsafeLogging", false, "Disable the address scrubber")
 }

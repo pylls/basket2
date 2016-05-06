@@ -69,7 +69,7 @@ func (s *serverState) getPtArgs() (*pt.Args, error) {
 
 	var kexStr string
 	for _, m := range s.config.KEXMethods {
-		kexStr += fmt.Sprintf("%X", m)
+		kexStr += m.ToHexString()
 	}
 
 	argStr := fmt.Sprintf("%X:%s:%s", basket2.ProtocolVersion, kexStr, pkStr)
@@ -150,6 +150,8 @@ func (s *serverState) connHandler(conn net.Conn) error {
 		return err
 	}
 
+	log.Debugf("%s: Handshaked with peer", addrStr)
+
 	// Connect to the caller's ExtOR Port.
 	orConn, err := pt.DialOr(s.info, bConn.RemoteAddr().String(), transportName)
 	if err != nil {
@@ -157,6 +159,8 @@ func (s *serverState) connHandler(conn net.Conn) error {
 		return err
 	}
 	defer orConn.Close()
+
+	log.Debugf("%s: Connected to upstream", addrStr)
 
 	// Shuffle bytes back and forth.
 	copyLoop(bConn, orConn, addrStr)

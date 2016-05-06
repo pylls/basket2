@@ -41,9 +41,11 @@ const (
 	// ProtocolVersion is the transport protocol version.
 	ProtocolVersion = 0
 
-	minReqExtDataSize                = 1 + 1 + 1 // Version, nrPaddingAlgs, > 1 padding alg.
-	minRespExtDataSize               = 1 + 1 + 1 // Version, authPolicy, padding alg.
-	paddingInvalid     PaddingMethod = 0xff
+	// PaddingInvalid is a invalid/undefined padding method.
+	PaddingInvalid PaddingMethod = 0xff
+
+	minReqExtDataSize  = 1 + 1 + 1 // Version, nrPaddingAlgs, > 1 padding alg.
+	minRespExtDataSize = 1 + 1 + 1 // Version, authPolicy, padding alg.
 )
 
 var (

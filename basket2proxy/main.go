@@ -113,6 +113,7 @@ func main() {
 	// Parse and act on the command line arguments.
 	showVersion := flag.Bool("version", false, "Show version and exit.")
 	enableLogging := flag.Bool("enableLogging", false, "Log to TOR_PT_STATE_LOCATION/"+basket2proxyLogFile)
+	logLevelStr := flag.String("logLevel", "ERROR", "Log level (ERROR/WARN/INFO/DEBUG)")
 	flag.Parse()
 
 	if *showVersion {
@@ -126,7 +127,7 @@ func main() {
 		golog.Fatalf("%s: [ERROR]: Must be run as a managed transport", execName)
 	}
 	if stateDir, err = pt.MakeStateDir(); err != nil {
-		golog.Fatalf("%s: [ERROR]: No state directory: %s", execName, err)
+		golog.Fatalf("%s: [ERROR]: No state directory: %v", execName, err)
 	}
 
 	// Bring file backed logging online.
@@ -134,10 +135,13 @@ func main() {
 		logFilePath := path.Join(stateDir, basket2proxyLogFile)
 		logWriter, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 		if err != nil {
-			golog.Fatalf("%s: [ERROR]: Failed to open log file: %s", execName, err)
+			golog.Fatalf("%s: [ERROR]: Failed to open log file: %v", execName, err)
 		}
 		logger := golog.New(logWriter, execName+": ", golog.LstdFlags)
 		log.SetLogger(logger)
+		if err = log.SetLogLevel(*logLevelStr); err != nil {
+			golog.Fatalf("%s: [ERROR]: Failed to set log level: %v", err)
+		}
 	}
 
 	log.Noticef("%s - Launched", getVersion())

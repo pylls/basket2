@@ -85,14 +85,14 @@ func (s *ServerConn) Handshake(conn net.Conn) (err error) {
 	if int(reqExtData[1]) != len(reqExtData)-2 {
 		return ErrInvalidExtData
 	}
-	paddingMethod := paddingInvalid
+	paddingMethod := PaddingInvalid
 	for _, v := range reqExtData[2:] {
 		if paddingOk(PaddingMethod(v), s.config.PaddingMethods) {
 			paddingMethod = PaddingMethod(v)
 			break
 		}
 	}
-	if paddingMethod == paddingInvalid {
+	if paddingMethod == PaddingInvalid {
 		return ErrInvalidPadding
 	}
 	var paddingParams []byte

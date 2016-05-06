@@ -20,6 +20,7 @@ package handshake
 
 import (
 	"errors"
+	"fmt"
 	"io"
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
@@ -36,6 +37,9 @@ type KEXMethod byte
 const (
 	// HandshakeVersion is the current handshake version.
 	HandshakeVersion = 1
+
+	// KEXInvalid is a invalid/undefined KEX method.
+	KEXInvalid KEXMethod = 0xff
 
 	// MessageSize is the length that all handshake messages get padded to,
 	// without including user extData or padding (2146 bytes).
@@ -64,6 +68,11 @@ var (
 
 	supportedMethods map[KEXMethod]bool
 )
+
+// ToHexString returns the hexdecimal string representation of a KEX method.
+func (m KEXMethod) ToHexString() string {
+	return fmt.Sprintf("%02x", m)
+}
 
 // SessionKeys is the handshake output.  It is safe to assume contributatory
 // behavior from both parties in the KDF output and the handshake transcript
