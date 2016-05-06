@@ -27,10 +27,13 @@ import (
 
 	"git.schwanenlied.me/yawning/basket2.git"
 	"git.schwanenlied.me/yawning/basket2.git/basket2proxy/internal/log"
+	"git.schwanenlied.me/yawning/basket2.git/basket2proxy/internal/proxyextras"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
 	"git.schwanenlied.me/yawning/basket2.git/handshake"
 
 	"git.torproject.org/pluggable-transports/goptlib.git"
+
+	"golang.org/x/net/proxy"
 )
 
 const (
@@ -131,10 +134,20 @@ func (s *clientState) connHandler(socksConn *pt.SocksConn) error {
 		return err
 	}
 
-	// XXX: Handle the proxy.
+	// Handle the proxy.
+	dialFn := proxy.Direct.Dial
+	if s.proxyURL != nil {
+		dialer, err := proxy.FromURL(s.proxyURL, proxy.Direct)
+		if err != nil {
+			log.Errorf("%s: Failed to obtain proxy dialer: %v", addrStr, log.ElideError(err))
+			socksConn.Reject()
+			return err
+		}
+		dialFn = dialer.Dial
+	}
 
 	// Connect to the bridge.
-	conn, err := net.Dial("tcp", socksConn.Req.Target)
+	conn, err := dialFn("tcp", socksConn.Req.Target)
 	if err != nil {
 		log.Errorf("%s: Failed to connect to the bridge: %v", addrStr, log.ElideError(err))
 		socksConn.RejectReason(errorToSocksReplyCode(err))
@@ -181,6 +194,7 @@ func clientInit() []net.Listener {
 
 	// Assume for now that the proxy URL is well formed.
 	if ci.ProxyURL != nil {
+		proxyextras.InitBackends()
 		pt.ProxyDone()
 	}
 

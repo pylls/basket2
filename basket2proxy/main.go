@@ -140,7 +140,7 @@ func main() {
 		logger := golog.New(logWriter, execName+": ", golog.LstdFlags)
 		log.SetLogger(logger)
 		if err = log.SetLogLevel(*logLevelStr); err != nil {
-			golog.Fatalf("%s: [ERROR]: Failed to set log level: %v", err)
+			golog.Fatalf("%s: [ERROR]: Failed to set log level: %v", execName, err)
 		}
 	}
 
