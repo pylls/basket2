@@ -26,12 +26,14 @@ import (
 	"net"
 	"os"
 	"path"
+	"strings"
 	"sync"
 	"syscall"
 
 	"git.schwanenlied.me/yawning/basket2.git"
 	"git.schwanenlied.me/yawning/basket2.git/basket2proxy/internal/log"
 	"git.schwanenlied.me/yawning/basket2.git/basket2proxy/internal/ptextras"
+	"git.schwanenlied.me/yawning/basket2.git/handshake"
 	"git.torproject.org/pluggable-transports/goptlib.git"
 )
 
@@ -54,7 +56,18 @@ var (
 	defaultPaddingMethods = []basket2.PaddingMethod{
 		basket2.PaddingNull,
 	}
+
+	enabledKEXMethods []handshake.KEXMethod
 )
+
+func isEnabledKEXMethod(m handshake.KEXMethod) bool {
+	for _, v := range enabledKEXMethods {
+		if m == v {
+			return true
+		}
+	}
+	return false
+}
 
 func getVersion() string {
 	return "basket2proxy - " + basket2proxyVersion
@@ -106,19 +119,58 @@ func copyLoop(bConn, orConn net.Conn, addrStr string) {
 	}
 }
 
+func overrideKEXMethods(s string) error {
+	if s == "" {
+		return nil
+	}
+
+	var methods []handshake.KEXMethod
+	for _, mStr := range strings.Split(s, ",") {
+		m := handshake.KEXMethodFromString(mStr)
+		if m == handshake.KEXInvalid {
+			return handshake.ErrInvalidKEXMethod
+		}
+		methods = append(methods, m)
+	}
+	if len(methods) == 0 {
+		return fmt.Errorf("no valid KEX methods provided")
+	}
+
+	enabledKEXMethods = methods
+	return nil
+}
+
 func main() {
 	termMon = ptextras.NewTermMonitor()
 	_, execName := path.Split(os.Args[0])
 
 	// Parse and act on the command line arguments.
-	showVersion := flag.Bool("version", false, "Show version and exit.")
+	showVersion := flag.Bool("version", false, "Show version and exit")
 	enableLogging := flag.Bool("enableLogging", false, "Log to TOR_PT_STATE_LOCATION/"+basket2proxyLogFile)
 	logLevelStr := flag.String("logLevel", "ERROR", "Log level (ERROR/WARN/INFO/DEBUG)")
+	showAlgorithms := flag.Bool("algorithms", false, "Show supported algorithms and exit")
+	kexMethodsStr := flag.String("kexMethods", "", "Key exchange methods")
 	flag.Parse()
+
+	// Populate the lists of supported algorithms.
+	enabledKEXMethods = handshake.SupportedKEXMethods()
 
 	if *showVersion {
 		fmt.Printf("%s\n", getVersion())
 		os.Exit(0)
+	}
+	if *showAlgorithms {
+		fmt.Printf("%s\n", getVersion())
+		fmt.Printf("\n Key Exchange Methods:\n")
+		for _, m := range enabledKEXMethods {
+			fmt.Printf("  %s - %s\n", m.ToHexString(), m.ToString())
+		}
+		os.Exit(0)
+	}
+
+	// XXX: Support for overriding the padding algorithms etc.
+	if err := overrideKEXMethods(*kexMethodsStr); err != nil {
+		golog.Fatalf("%s: [ERROR]: Failed to set KEX methods: %v", err)
 	}
 
 	// Common PT initialization (primarily for the stateDir).

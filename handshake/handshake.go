@@ -66,12 +66,41 @@ var (
 	handshakeKdfTweak = []byte("basket2-handshake-v1-kdf-tweak")
 	newhopeRandTweak  = []byte("basket2-newhope-tweak")
 
-	supportedMethods map[KEXMethod]bool
+	// Note: Ordering matters here, so specify the non-tinfoil hat option
+	// first since it's adequate for all but the most paranoid.
+	supportedKEXMethods = []KEXMethod{
+		X25519NewHope,
+		X448NewHope,
+	}
 )
 
 // ToHexString returns the hexdecimal string representation of a KEX method.
 func (m KEXMethod) ToHexString() string {
 	return fmt.Sprintf("%02x", m)
+}
+
+// ToString returms the descriptive string reppresentaiton of a KEX method.
+func (m KEXMethod) ToString() string {
+	switch m {
+	case X25519NewHope:
+		return "X25519NewHope"
+	case X448NewHope:
+		return "X448NewHope"
+	default:
+		return "[Unknown algorithm]"
+	}
+}
+
+// KEXMethodFromString returns the KEXMethod corresponding to a given string.
+func KEXMethodFromString(s string) KEXMethod {
+	switch s {
+	case "X25519NewHope":
+		return X25519NewHope
+	case "X448NewHope":
+		return X448NewHope
+	default:
+		return KEXInvalid
+	}
 }
 
 // SessionKeys is the handshake output.  It is safe to assume contributatory
@@ -301,13 +330,10 @@ func NewServerHandshake(rand io.Reader, kexMethods []KEXMethod, replay ReplayFil
 	return s, nil
 }
 
-// IsSupportedMethod returns true iff the KEX method is supported.
-func IsSupportedMethod(m KEXMethod) bool {
-	return supportedMethods[m]
-}
-
-func init() {
-	supportedMethods = make(map[KEXMethod]bool)
-	supportedMethods[X25519NewHope] = true
-	supportedMethods[X448NewHope] = true
+// SupportedKEXMethods returns the list of supported KEX methods in order of
+// preference.
+func SupportedKEXMethods() []KEXMethod {
+	var ret []KEXMethod
+	ret = append(ret, supportedKEXMethods...)
+	return ret
 }

@@ -71,7 +71,7 @@ func (s *clientState) parseBridgeArgs(args *pt.Args) (*basket2.ClientConfig, err
 	}
 	for _, m := range kexMethods {
 		method := handshake.KEXMethod(m)
-		if handshake.IsSupportedMethod(method) {
+		if isEnabledKEXMethod(method) {
 			cfg.KEXMethod = method
 			break
 		}
@@ -125,6 +125,8 @@ func (s *clientState) connHandler(socksConn *pt.SocksConn) error {
 		return err
 	}
 	cfg.PaddingMethods = append(cfg.PaddingMethods, defaultPaddingMethods...)
+
+	log.Debugf("%s: Using KEX: %s", addrStr, cfg.KEXMethod.ToString())
 
 	// Intialize the basket2 state.
 	bConn, err := basket2.NewClientConn(cfg)

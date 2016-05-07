@@ -46,14 +46,7 @@ const (
 	maxCloseDelay          = 60
 )
 
-var (
-	defaultKEXMethods = []handshake.KEXMethod{
-		handshake.X25519NewHope,
-		handshake.X448NewHope,
-	}
-
-	useLargeReplayFilter bool
-)
+var useLargeReplayFilter bool
 
 type serverState struct {
 	config *basket2.ServerConfig
@@ -266,11 +259,9 @@ func initServerListener(si *pt.ServerInfo, bindaddr *pt.Bindaddr) (net.Listener,
 	cfg := &basket2.ServerConfig{
 		ServerPrivateKey: sk,
 		ReplayFilter:     rf,
+		KEXMethods:       enabledKEXMethods,
 	}
 	// XXX: Override the default values.
-	if len(cfg.KEXMethods) == 0 {
-		cfg.KEXMethods = append(cfg.KEXMethods, defaultKEXMethods...)
-	}
 	if len(cfg.PaddingMethods) == 0 {
 		cfg.PaddingMethods = append(cfg.PaddingMethods, defaultPaddingMethods...)
 	}
