@@ -14,10 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package rand exposes a math/rand.Rand instance that is backed by the
-// system entropy source, with SipHash-2-4 based whitening, and a non-broken
-// replacement for crypto/rand.Reader that is actually suitable for generating
-// long term cryptographic keying material.
+// Package rand provides various utitilies related to generating
+// cryptographically secure random numbers and byte vectors.
 package rand
 
 import (
@@ -30,7 +28,10 @@ import (
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
 
 	"github.com/dchest/siphash"
+	"golang.org/x/crypto/sha3"
 )
+
+var shakeDRBGTweak = []byte("basket2-shake-drbg-tweak")
 
 type sipSource struct {
 	sync.Mutex
@@ -84,17 +85,51 @@ func (s *sipSource) Seed(seed int64) {
 	return
 }
 
-func newSource() (rand.Source, error) {
+func newSource() rand.Source {
 	s := new(sipSource)
 	s.Seed(0)
-	return s, nil
+	return s
 }
 
 // New creates a new "cryptograpically secure" math/rand.Rand.
-func New() (*rand.Rand, error) {
-	s, err := newSource()
-	if err != nil {
-		return nil, err
+func New() *rand.Rand {
+	return rand.New(newSource())
+}
+
+type shakeDRBG struct {
+	sync.Mutex
+	h sha3.ShakeHash
+}
+
+func (s *shakeDRBG) Int63() int64 {
+	s.Lock()
+	defer s.Unlock()
+
+	var v [8]byte
+	s.h.Read(v[:])
+	ret := binary.BigEndian.Uint64(v[:])
+	ret &= (1 << 63) - 1
+
+	return int64(ret)
+}
+
+func (s *shakeDRBG) Seed(seed int64) {
+	panic("shakeDRBG: Attempted to Seed() the DRBG instance")
+}
+
+// NewDRBG creates a new Deterministic Random Bit Generator initialized with
+// the provided seed and backed by SHAKE-128 that exposes a math/rand.Rand
+// interface.  As the output is entirely deterministic, this should NOT
+// be used to generate cryptographic keying material.
+func NewDRBG(seed []byte) *rand.Rand {
+	if len(seed) == 0 {
+		panic("shakeDRBG: invalid seed provided")
 	}
-	return rand.New(s), nil
+
+	s := new(shakeDRBG)
+	s.h = sha3.NewShake128()
+	s.h.Write(shakeDRBGTweak)
+	s.h.Write(seed)
+
+	return rand.New(s)
 }

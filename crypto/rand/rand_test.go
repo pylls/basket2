@@ -62,3 +62,18 @@ func TestImprovedSyscallRand(t *testing.T) {
 		t.Errorf("large: %v", err)
 	}
 }
+
+func TestDeterministicRand(t *testing.T) {
+	r := NewDRBG([]byte("test seed pls ignore"))
+
+	// XXX: Maybe provide a vector of known output or something...
+	var buckets [10]int
+	for i := 0; i < 100; i++ {
+		v := r.Intn(10)
+		buckets[v]++
+	}
+
+	for i, v := range buckets {
+		t.Logf("[%v]: %v", i, v)
+	}
+}

@@ -243,10 +243,7 @@ func loadServerPrivateKey() (sk *identity.PrivateKey, err error) {
 
 func initServerListener(si *pt.ServerInfo, bindaddr *pt.Bindaddr) (net.Listener, error) {
 	// Instantiate a intenger random number generator.
-	mRNG, err := rand.New()
-	if err != nil {
-		return nil, err
-	}
+	mRNG := rand.New()
 
 	// Deserialize the identity key.
 	sk, err := loadServerPrivateKey()

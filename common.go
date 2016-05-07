@@ -211,9 +211,7 @@ func (c *commonConn) initConn(conn net.Conn) error {
 		return err
 	}
 
-	if c.mRNG, err = rand.New(); err != nil {
-		return err
-	}
+	c.mRNG = rand.New()
 
 	// Derive the "max" record size based off the remote address,
 	// under the assumption that 1500 byte MTU ethernet is in use.
