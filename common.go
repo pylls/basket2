@@ -72,6 +72,12 @@ var (
 
 	// ErrNotSupported is the error returned on an unsupported call.
 	ErrNotSupported = errors.New("basket2: operation not supported")
+
+	supportedPaddingMethods = []PaddingMethod{
+		PaddingObfs4BurstIAT,
+		PaddingObfs4Burst,
+		PaddingNull,
+	}
 )
 
 // PaddingMethod is a given padding algorithm identifier.
@@ -97,6 +103,11 @@ const (
 	stateEstablished
 	stateError
 )
+
+// ToHexString returns the hexdecimal string representation of a padding method.
+func (m PaddingMethod) ToHexString() string {
+	return fmt.Sprintf("%02x", m)
+}
 
 // ToString returms the descriptive string reppresentaiton of a padding method.
 func (m PaddingMethod) ToString() string {
@@ -138,6 +149,8 @@ type commonConn struct {
 	txEncoder *tentp.Encoder
 	rxDecoder *tentp.Decoder
 	impl      paddingImpl
+
+	paddingMethod PaddingMethod
 
 	maxRecordSize     int
 	enforceRecordSize bool
@@ -234,6 +247,7 @@ func (c *commonConn) initConn(conn net.Conn) error {
 		return err
 	}
 
+	c.paddingMethod = PaddingInvalid
 	c.mRNG = rand.New()
 
 	// Derive the "max" record size based off the remote address,
@@ -346,6 +360,7 @@ func (c *commonConn) setPadding(method PaddingMethod, params []byte) error {
 	default:
 		return ErrInvalidPadding
 	}
+	c.paddingMethod = method
 	return nil
 }
 
@@ -447,6 +462,13 @@ func (c *commonConn) RecvRawRecord() (cmd byte, msg []byte, err error) {
 	return
 }
 
+// PaddingMethod returns the padding method negotiated with the peer.  This
+// will only be set to something useful after a Handshake() call completes
+// successfully.
+func (c *commonConn) PaddingMethod() PaddingMethod {
+	return c.paddingMethod
+}
+
 func paddingOk(needle PaddingMethod, haystack []PaddingMethod) bool {
 	for _, v := range haystack {
 		if needle == v {
@@ -472,6 +494,14 @@ func DefaultPaddingParams(method PaddingMethod) ([]byte, error) {
 		return seed, nil
 	}
 	return nil, ErrInvalidPadding
+}
+
+// SupportedPaddingMethods returns the list of supported padding methods in
+// order of preference.
+func SupportedPaddingMethods() []PaddingMethod {
+	var ret []PaddingMethod
+	ret = append(ret, supportedPaddingMethods...)
+	return ret
 }
 
 func init() {

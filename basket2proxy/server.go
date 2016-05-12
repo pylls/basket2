@@ -328,10 +328,7 @@ func initServerListener(si *pt.ServerInfo, bindaddr *pt.Bindaddr) (net.Listener,
 		ServerPrivateKey: sk,
 		ReplayFilter:     rf,
 		KEXMethods:       enabledKEXMethods,
-	}
-	// XXX: Override the default values.
-	if len(cfg.PaddingMethods) == 0 {
-		cfg.PaddingMethods = append(cfg.PaddingMethods, defaultPaddingMethods...)
+		PaddingMethods:   enabledPaddingMethods,
 	}
 
 	state := &serverState{

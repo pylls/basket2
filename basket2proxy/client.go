@@ -124,7 +124,7 @@ func (s *clientState) connHandler(socksConn *pt.SocksConn) error {
 		socksConn.Reject()
 		return err
 	}
-	cfg.PaddingMethods = append(cfg.PaddingMethods, defaultPaddingMethods...)
+	cfg.PaddingMethods = append(cfg.PaddingMethods, enabledPaddingMethods...)
 
 	log.Debugf("%s: Using KEX: %s", addrStr, cfg.KEXMethod.ToString())
 
@@ -175,6 +175,7 @@ func (s *clientState) connHandler(socksConn *pt.SocksConn) error {
 	}
 
 	log.Debugf("%s: Handshaked with peer", addrStr)
+	log.Debugf("%s: Using padding: %s", addrStr, bConn.PaddingMethod().ToString())
 
 	// Signal to the client that the connection is ready for traffic.
 	if err = socksConn.Grant(nil); err != nil {

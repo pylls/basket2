@@ -54,13 +54,8 @@ var (
 	termMon   *ptextras.TermMonitor
 	termHooks []func()
 
-	defaultPaddingMethods = []basket2.PaddingMethod{
-		basket2.PaddingObfs4BurstIAT,
-		basket2.PaddingObfs4Burst,
-		basket2.PaddingNull,
-	}
-
-	enabledKEXMethods []handshake.KEXMethod
+	enabledPaddingMethods []basket2.PaddingMethod
+	enabledKEXMethods     []handshake.KEXMethod
 )
 
 func isEnabledKEXMethod(m handshake.KEXMethod) bool {
@@ -143,6 +138,36 @@ func overrideKEXMethods(s string) error {
 	return nil
 }
 
+func overridePaddingMethods(s string) error {
+	var methods []basket2.PaddingMethod
+
+	if s == "" {
+		// Disable some of the padding methods, that shouldn't be allowed
+		// unless the admin knows what they are doing.
+		for _, m := range enabledPaddingMethods {
+			if m == basket2.PaddingNull {
+				continue
+			}
+			methods = append(methods, m)
+		}
+	} else {
+		// Parse the user specified methods.
+		for _, mStr := range strings.Split(s, ",") {
+			m := basket2.PaddingMethodFromString(mStr)
+			if m == basket2.PaddingInvalid {
+				return basket2.ErrInvalidPadding
+			}
+			methods = append(methods, m)
+		}
+	}
+	if len(methods) == 0 {
+		return fmt.Errorf("no valid padding methods provided")
+	}
+
+	enabledPaddingMethods = methods
+	return nil
+}
+
 func main() {
 	termMon = ptextras.NewTermMonitor()
 	_, execName := path.Split(os.Args[0])
@@ -153,10 +178,12 @@ func main() {
 	logLevelStr := flag.String("logLevel", "ERROR", "Log level (ERROR/WARN/INFO/DEBUG)")
 	showAlgorithms := flag.Bool("algorithms", false, "Show supported algorithms and exit")
 	kexMethodsStr := flag.String("kexMethods", "", "Key exchange methods")
+	paddingMethodsStr := flag.String("paddingMethods", "", "Padding methods")
 	flag.Parse()
 
 	// Populate the lists of supported algorithms.
 	enabledKEXMethods = handshake.SupportedKEXMethods()
+	enabledPaddingMethods = basket2.SupportedPaddingMethods()
 
 	if *showVersion {
 		fmt.Printf("%s\n", getVersion())
@@ -164,8 +191,14 @@ func main() {
 	}
 	if *showAlgorithms {
 		fmt.Printf("%s\n", getVersion())
+
 		fmt.Printf("\n Key Exchange Methods:\n")
 		for _, m := range enabledKEXMethods {
+			fmt.Printf("  %s - %s\n", m.ToHexString(), m.ToString())
+		}
+
+		fmt.Printf("\n Padding Methods:\n")
+		for _, m := range enabledPaddingMethods {
 			fmt.Printf("  %s - %s\n", m.ToHexString(), m.ToString())
 		}
 		os.Exit(0)
@@ -174,6 +207,9 @@ func main() {
 	// XXX: Support for overriding the padding algorithms etc.
 	if err := overrideKEXMethods(*kexMethodsStr); err != nil {
 		golog.Fatalf("%s: [ERROR]: Failed to set KEX methods: %v", execName, err)
+	}
+	if err := overridePaddingMethods(*paddingMethodsStr); err != nil {
+		golog.Fatalf("%s: [ERROR]: Failed to set padding methods: %v", execName, err)
 	}
 
 	// Common PT initialization (primarily for the stateDir).
