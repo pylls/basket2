@@ -153,6 +153,8 @@ func (d *DiscreteDist) Sample(r *mrand.Rand) int {
 	return d.values[idx]
 }
 
+// NewUniform creates a new uniform discrete distribution, optionally with
+// biased probabilities.
 func NewUniform(r *mrand.Rand, minValue, maxValue, maxN int, biased bool) *DiscreteDist {
 	d := new(DiscreteDist)
 

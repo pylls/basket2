@@ -77,12 +77,6 @@ var (
 // PaddingMethod is a given padding algorithm identifier.
 type PaddingMethod byte
 
-type paddingImpl interface {
-	Write([]byte) (int, error)
-	Read([]byte) (int, error)
-	OnClose()
-}
-
 // AuthPolicy is the server authentication policy.
 type AuthPolicy byte
 
@@ -160,7 +154,7 @@ func (c *commonConn) Read(p []byte) (n int, err error) {
 	n, err = c.impl.Read(p)
 	if c.enableReadDelay && n > 0 {
 		// If data payload was received and read delay is enabled,
-		// delay for a random interval [0, 2 * tau] usec.
+		// delay for a random interval [0, 2 * tau) usec.
 		//
 		// This is primarily intended for the server side of the Tor
 		// Pluggable transport code in an attempt to mitigate delay based

@@ -61,36 +61,7 @@ func (c *nullPadding) Write(p []byte) (int, error) {
 }
 
 func (c *nullPadding) Read(p []byte) (n int, err error) {
-	// This buffering strategy will return short reads, since a new record
-	// is only consumed off the network once the entirety of the previous
-	// record has been returned.  A goroutine that comsumes off the network
-	// instead would minimize this, but this is simple and prevents rampant
-	// runaway buffer growth.
-
-	// Refill the receive buffer as needed...
-	for c.recvBuf.Len() == 0 && err == nil {
-		// ... by reading the next record off the network...
-		var cmd byte
-		var msg []byte
-		cmd, msg, err = c.conn.RecvRawRecord()
-		if err != nil {
-			break
-		}
-		if cmd != framing.CmdData {
-			return 0, ErrInvalidCmd
-		}
-
-		// ... and stashing it in the buffer.
-		if len(msg) > 0 {
-			c.recvBuf.Write(msg)
-		}
-	}
-
-	// Service the Read using buffered payload.
-	if c.recvBuf.Len() > 0 && err == nil {
-		n, _ = c.recvBuf.Read(p)
-	}
-	return
+	return paddingImplGenericRead(c.conn, &c.recvBuf, p)
 }
 
 func (c *nullPadding) OnClose() {
