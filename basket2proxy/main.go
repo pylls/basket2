@@ -170,7 +170,7 @@ func main() {
 
 	// XXX: Support for overriding the padding algorithms etc.
 	if err := overrideKEXMethods(*kexMethodsStr); err != nil {
-		golog.Fatalf("%s: [ERROR]: Failed to set KEX methods: %v", err)
+		golog.Fatalf("%s: [ERROR]: Failed to set KEX methods: %v", execName, err)
 	}
 
 	// Common PT initialization (primarily for the stateDir).
