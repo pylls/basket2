@@ -17,6 +17,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -38,6 +39,7 @@ import (
 
 const (
 	bridgeFile          = "basket2_bridgeline.txt"
+	bridgeParamsFile    = "basket2_params.json"
 	privateIdentityFile = "basket2_ed25519.priv"
 	fileMode            = 0600
 
@@ -52,6 +54,8 @@ type serverState struct {
 	config *basket2.ServerConfig
 	info   *pt.ServerInfo
 	ln     net.Listener
+
+	paddingParams map[basket2.PaddingMethod][]byte
 
 	closeDelayBytes int
 	closeDelay      int
@@ -90,6 +94,70 @@ func (s *serverState) getPtArgs() (*pt.Args, error) {
 	}
 
 	return args, nil
+}
+
+func (s *serverState) initPaddingParams() error {
+	paramsFile := path.Join(stateDir, bridgeParamsFile)
+	jsonBlob, err := ioutil.ReadFile(paramsFile)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Errorf("Failed to load padding param file: %v", err)
+			return err
+		}
+
+		// Generate sensible padding parameters for *all* supported algorithms.
+		methods := []basket2.PaddingMethod{
+			basket2.PaddingObfs4Burst,
+			basket2.PaddingObfs4BurstIAT,
+		}
+		for _, m := range methods {
+			s.paddingParams[m], err = basket2.DefaultPaddingParams(m)
+			if err != nil {
+				log.Errorf("faild to generate params for '%v': %v", m, err)
+				return err
+			}
+		}
+
+		// Serialize the padding parameters.
+		jsonMap := make(map[string][]byte)
+		for k, v := range s.paddingParams {
+			jsonMap[k.ToString()] = v
+		}
+		if jsonBlob, err = json.Marshal(jsonMap); err != nil {
+			log.Errorf("Failed to serialize padding params: %v", err)
+			return err
+		}
+		return ioutil.WriteFile(paramsFile, jsonBlob, os.ModeExclusive|fileMode)
+	}
+
+	// Deserialize the JSON blob.
+	jsonMap := make(map[string][]byte)
+	if err = json.Unmarshal(jsonBlob, &jsonMap); err != nil {
+		log.Errorf("Failed to deserialize padding params: %v", err)
+		return err
+	}
+
+	for k, v := range jsonMap {
+		m := basket2.PaddingMethodFromString(k)
+		if m == basket2.PaddingInvalid {
+			log.Errorf("Serialized padding params had unknown algorithm")
+			return basket2.ErrInvalidPadding
+		}
+		s.paddingParams[m] = v
+	}
+
+	// TODO: This should generate params for algorithms that are missing, but
+	// that can wait till I add a bunch of algorithms.
+
+	return nil
+}
+
+func (s *serverState) getPaddingParams(method basket2.PaddingMethod) ([]byte, error) {
+	params, ok := s.paddingParams[method]
+	if !ok {
+		return nil, basket2.ErrInvalidPadding
+	}
+	return params, nil
 }
 
 func (s *serverState) acceptLoop() error {
@@ -271,8 +339,14 @@ func initServerListener(si *pt.ServerInfo, bindaddr *pt.Bindaddr) (net.Listener,
 		info:            si,
 		closeDelayBytes: mRNG.Intn(maxCloseDelayBytes),
 		closeDelay:      mRNG.Intn(maxCloseDelay),
+		paddingParams:   make(map[basket2.PaddingMethod][]byte),
 	}
-	// XXX: Deal with padding parameterization somehow.
+
+	// Deserialize the padding params, and set the parameterization hook.
+	if err = state.initPaddingParams(); err != nil {
+		return nil, err
+	}
+	cfg.PaddingParamFn = state.getPaddingParams
 
 	// Synthesize the bridge transport args, and write out the bridge line.
 	ptArgs, err := state.getPtArgs()

@@ -98,6 +98,35 @@ const (
 	stateError
 )
 
+// ToString returms the descriptive string reppresentaiton of a padding method.
+func (m PaddingMethod) ToString() string {
+	switch m {
+	case PaddingNull:
+		return "Null"
+	case PaddingObfs4Burst:
+		return "Obfs4Burst"
+	case PaddingObfs4BurstIAT:
+		return "Obfs4BurstIAT"
+	default:
+		return "[Unknown algorithm]"
+	}
+}
+
+// PaddingMethodFromString returns the PaddingMethod corresponding to a given
+// string.
+func PaddingMethodFromString(s string) PaddingMethod {
+	switch s {
+	case "Null":
+		return PaddingNull
+	case "Obfs4Burst":
+		return PaddingObfs4Burst
+	case "Obfs4BurstIAT":
+		return PaddingObfs4BurstIAT
+	default:
+		return PaddingInvalid
+	}
+}
+
 type commonConn struct {
 	sync.Mutex
 
@@ -427,8 +456,9 @@ func paddingOk(needle PaddingMethod, haystack []PaddingMethod) bool {
 	return false
 }
 
-func defaultPaddingParams(method PaddingMethod) ([]byte, error) {
-	// Provide a sane set of default padding algorithm parameters if possible.
+// DefaultPaddingParams returns "sensible" parameters for each supported
+// padding method that requires parameterization.
+func DefaultPaddingParams(method PaddingMethod) ([]byte, error) {
 	switch method {
 	case PaddingNull:
 		return nil, nil

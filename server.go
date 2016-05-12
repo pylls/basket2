@@ -180,7 +180,7 @@ func NewServerConn(config *ServerConfig) (*ServerConn, error) {
 		panic("basket2: no server private key")
 	}
 	if config.PaddingParamFn == nil {
-		config.PaddingParamFn = defaultPaddingParams
+		config.PaddingParamFn = DefaultPaddingParams
 	}
 
 	s := new(ServerConn)
