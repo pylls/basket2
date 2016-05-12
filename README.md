@@ -9,13 +9,13 @@ Features:
 
  * Authentication, data integrity, and confidentiality.
  * Active probing resistance.
- * Passive fingerprinting resistance, significantly improved over obfs4.
+ * Passive fingerprinting resistance, improved over obfs4.
  * Client driven dynamic negotiation of runtime padding to better suit various
    adversary models.
  * Better separation between the handshake obfuscation and the authenticated
    key exchange mechanisms.
  * Significantly improved link layer framing.
- * Optional user authentication.
+ * (TODO) Optional user authentication.
  * Post-quantum forward secrecy.
  * License switch from 3BSD to AGPL for more Freedom.
 
