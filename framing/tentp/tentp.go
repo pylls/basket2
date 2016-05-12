@@ -44,12 +44,12 @@ const (
 	// MaxPlaintextRecordSize is the maximum length of a message payload that
 	// can be sent per record.  (The length of payload + padding is also
 	// limited to this maximum value).
-	MaxPlaintextRecordSize = 16383
+	MaxPlaintextRecordSize = 65535
 
 	// MaxPaddingSize is the maximum length of padding that can be sent per
 	// record.  (The length of payload + padding is also limited to this
 	// maximum value).
-	MaxPaddingSize = 16383
+	MaxPaddingSize = 65535
 
 	// FramingOverhead is the amount of constant overhead incurred regardless
 	// of payload/padding length (24 bytes).

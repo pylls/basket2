@@ -43,11 +43,8 @@ func TestTentpSmoke(t *testing.T) {
 		t.Fatalf("failed to initialize decoder: %v", err)
 	}
 
-	// The full version of this takes... quite a while (~2 mins on an i5).
-	padIters := 10
-	if testing.Short() {
-		padIters = 2
-	}
+	// This used to be 10, but since I increased the framesize...
+	padIters := 2
 
 	for i := 0; i <= MaxPlaintextRecordSize; i++ {
 		var sndCmd [1]byte
