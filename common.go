@@ -308,6 +308,12 @@ func (c *commonConn) setPadding(method PaddingMethod, params []byte) error {
 	switch method {
 	case PaddingNull:
 		c.impl = newNullPadding(c)
+	case PaddingObfs4Burst, PaddingObfs4BurstIAT:
+		var err error
+		c.impl, err = newObfs4Padding(c, method, params)
+		if err != nil {
+			return err
+		}
 	default:
 		return ErrInvalidPadding
 	}
@@ -426,6 +432,14 @@ func defaultPaddingParams(method PaddingMethod) ([]byte, error) {
 	switch method {
 	case PaddingNull:
 		return nil, nil
+	case PaddingObfs4Burst, PaddingObfs4BurstIAT:
+		// This should be parameterized from persistent state, but allow
+		// random parametrization.
+		seed := make([]byte, Obfs4SeedLength)
+		if _, err := io.ReadFull(rand.Reader, seed); err != nil {
+			return nil, err
+		}
+		return seed, nil
 	}
 	return nil, ErrInvalidPadding
 }

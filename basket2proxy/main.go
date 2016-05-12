@@ -22,6 +22,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	golog "log"
 	"net"
 	"os"
@@ -54,6 +55,8 @@ var (
 	termHooks []func()
 
 	defaultPaddingMethods = []basket2.PaddingMethod{
+		basket2.PaddingObfs4BurstIAT,
+		basket2.PaddingObfs4Burst,
 		basket2.PaddingNull,
 	}
 
@@ -194,6 +197,12 @@ func main() {
 		if err = log.SetLogLevel(*logLevelStr); err != nil {
 			golog.Fatalf("%s: [ERROR]: Failed to set log level: %v", execName, err)
 		}
+
+		// Nothing should use the go log package, but redirect the output to
+		// the writer so I can use it for development/testing.
+		golog.SetOutput(logWriter)
+	} else {
+		golog.SetOutput(ioutil.Discard)
 	}
 
 	log.Noticef("%s - Launched", getVersion())
