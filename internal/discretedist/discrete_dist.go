@@ -39,15 +39,15 @@ type DiscreteDist struct {
 func (d *DiscreteDist) String() string {
 	var b bytes.Buffer
 
-	pSum := 0.0
+	wSum := 0.0
 	for _, v := range d.weights {
-		pSum += v
+		wSum += v
 	}
 
 	b.WriteString("[ ")
 	for i, v := range d.values {
 		pRaw := d.weights[i]
-		pScaled := pRaw / pSum
+		pScaled := pRaw / wSum
 		if pScaled >= 0.01 { // Squelch tiny probabilities.
 			b.WriteString(fmt.Sprintf("%d: %v ", v, pScaled))
 		}
