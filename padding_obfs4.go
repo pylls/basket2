@@ -71,9 +71,9 @@ func (c *obfs4Padding) shortWrite(p []byte) (n int, err error) {
 	remaining := len(p)
 	for remaining > 0 {
 		// Sample from the "short" distribution, which omits values less than
-		// the tentp framing overhead.
+		// the tentp framing+payload overhead.
 		targetLen := c.shortDist.Sample(c.conn.mRNG)
-		wrLen := targetLen - tentp.FramingOverhead
+		wrLen := targetLen - (tentp.FramingOverhead + tentp.PayloadOverhead)
 		padLen := 0
 		if remaining < wrLen {
 			padLen = wrLen - remaining
@@ -125,13 +125,13 @@ func (c *obfs4Padding) largeWrite(p []byte) (n int, err error) {
 		padLen := 0
 		if remaining <= wrLen {
 			// Append the padding to the last frame.
-			if tailPadLen < tentp.FramingOverhead+wrLen {
+			if tailPadLen < tentp.FramingOverhead+tentp.PayloadOverhead+wrLen {
 				// Need to also pad out to a "full" record.
 				tailPadLen += wrLen - remaining
 			} else {
 				// The tail of the burst counts towards part of the
 				// padding.
-				tailPadLen -= tentp.FramingOverhead + remaining
+				tailPadLen -= tentp.FramingOverhead + tentp.PayloadOverhead + remaining
 			}
 
 			padLen = tailPadLen
@@ -186,7 +186,7 @@ func newObfs4Padding(conn *commonConn, m PaddingMethod, seed []byte) (paddingImp
 	// XXX: Cache the distributions? (Should these be biased?)
 	r := rand.NewDRBG(seed)
 	c.burstDist = discretedist.NewUniform(r, 1, c.conn.maxRecordSize, 100, false)
-	c.shortDist = discretedist.NewUniform(r, tentp.FramingOverhead, c.conn.maxRecordSize, 100, false)
+	c.shortDist = discretedist.NewUniform(r, tentp.FramingOverhead+tentp.PayloadOverhead, c.conn.maxRecordSize, 100, false)
 
 	// IAT delay dist between 0 to 25 ms.
 	// Note: This is always needed due to the short write obfsucation strategy.
