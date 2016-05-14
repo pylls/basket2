@@ -56,7 +56,7 @@ type obfs4Padding struct {
 	recvBuf bytes.Buffer
 }
 
-func (c *obfs4Padding) shortWrite(p []byte) (n int, err error) {
+func (p *obfs4Padding) shortWrite(b []byte) (n int, err error) {
 	// Special case len(p) being "short".
 	//
 	// This is kind of annoying to obfuscate, since sending 2 segments isn't
@@ -65,14 +65,13 @@ func (c *obfs4Padding) shortWrite(p []byte) (n int, err error) {
 	//
 	// So, attempt to be somewhat clever by disabling Nagle and sending short
 	// records sized to something from the distribution.
-	c.conn.setNagle(false)
-	defer c.conn.setNagle(true)
+	p.conn.setNagle(false)
+	defer p.conn.setNagle(true)
 
-	remaining := len(p)
-	for remaining > 0 {
+	for remaining := len(b); remaining > 0; {
 		// Sample from the "short" distribution, which omits values less than
 		// the tentp framing+payload overhead.
-		targetLen := c.shortDist.Sample(c.conn.mRNG)
+		targetLen := p.shortDist.Sample(p.conn.mRNG)
 		wrLen := targetLen - (tentp.FramingOverhead + tentp.PayloadOverhead)
 		padLen := 0
 		if remaining < wrLen {
@@ -80,21 +79,21 @@ func (c *obfs4Padding) shortWrite(p []byte) (n int, err error) {
 			wrLen = remaining
 		}
 
-		if err := c.conn.SendRawRecord(framing.CmdData, p[n:n+wrLen], padLen); err != nil {
+		if err := p.conn.SendRawRecord(framing.CmdData, b[n:n+wrLen], padLen); err != nil {
 			return 0, err
 		}
 		n += wrLen
 		remaining -= wrLen
 
 		// Always inject a delay here, since discrete packets are wanted.
-		delay := time.Duration(c.delayDist.Sample(c.conn.mRNG)) * time.Microsecond
+		delay := time.Duration(p.delayDist.Sample(p.conn.mRNG)) * time.Microsecond
 		time.Sleep(delay)
 	}
 
 	return
 }
 
-func (c *obfs4Padding) largeWrite(p []byte) (n int, err error) {
+func (p *obfs4Padding) largeWrite(b []byte) (n int, err error) {
 	// Because the generic io.Copy() code is used, this gets called with up to
 	// 32 kib of data.
 	//
@@ -113,15 +112,15 @@ func (c *obfs4Padding) largeWrite(p []byte) (n int, err error) {
 	// stood out more (vs packetizing and writing to a connection with Nagel
 	// enabled).
 
-	remaining := len(p)
+	remaining := len(b)
 	isLargeWrite := remaining >= 32*1024 // XXX: What about CopyBuffer?
 
-	tailPadLen := c.burstDist.Sample(c.conn.mRNG)
+	tailPadLen := p.burstDist.Sample(p.conn.mRNG)
 	// tailPadLen += c.conn.maxRecordSize * c.conn.mRNG.Intn(3)
 
 	// Write out each frame (with payload).
 	for remaining > 0 {
-		wrLen := c.conn.maxRecordSize
+		wrLen := p.conn.maxRecordSize
 		padLen := 0
 		if remaining <= wrLen {
 			// Append the padding to the last frame.
@@ -138,7 +137,7 @@ func (c *obfs4Padding) largeWrite(p []byte) (n int, err error) {
 			wrLen = remaining
 		}
 
-		if err := c.conn.SendRawRecord(framing.CmdData, p[n:n+wrLen], padLen); err != nil {
+		if err := p.conn.SendRawRecord(framing.CmdData, b[n:n+wrLen], padLen); err != nil {
 			return 0, err
 		}
 		n += wrLen
@@ -147,34 +146,34 @@ func (c *obfs4Padding) largeWrite(p []byte) (n int, err error) {
 
 	// Add a delay sampled from the IAT distribution if we do not suspect that
 	// further data will be coming shortly.
-	if c.method == PaddingObfs4BurstIAT && !isLargeWrite {
-		delay := time.Duration(c.delayDist.Sample(c.conn.mRNG)) * time.Microsecond
+	if p.method == PaddingObfs4BurstIAT && !isLargeWrite {
+		delay := time.Duration(p.delayDist.Sample(p.conn.mRNG)) * time.Microsecond
 		time.Sleep(delay)
 	}
 	return
 }
 
-func (c *obfs4Padding) Write(p []byte) (n int, err error) {
-	if len(p) > c.conn.maxRecordSize {
-		n, err = c.shortWrite(p)
+func (p *obfs4Padding) Write(b []byte) (n int, err error) {
+	if len(b) > p.conn.maxRecordSize {
+		n, err = p.shortWrite(b)
 	} else {
-		n, err = c.largeWrite(p)
+		n, err = p.largeWrite(b)
 	}
 	return
 }
 
-func (c *obfs4Padding) Read(p []byte) (int, error) {
-	return paddingImplGenericRead(c.conn, &c.recvBuf, p)
+func (p *obfs4Padding) Read(b []byte) (int, error) {
+	return paddingImplGenericRead(p.conn, &p.recvBuf, b)
 }
 
-func (c *obfs4Padding) OnClose() {
-	c.recvBuf.Reset()
+func (p *obfs4Padding) OnClose() {
+	p.recvBuf.Reset()
 }
 
 func newObfs4Padding(conn *commonConn, m PaddingMethod, seed []byte) (paddingImpl, error) {
-	c := new(obfs4Padding)
-	c.conn = conn
-	c.method = m
+	p := new(obfs4Padding)
+	p.conn = conn
+	p.method = m
 
 	if len(seed) != Obfs4SeedLength {
 		return nil, ErrInvalidPadding
@@ -185,16 +184,16 @@ func newObfs4Padding(conn *commonConn, m PaddingMethod, seed []byte) (paddingImp
 	//
 	// XXX: Cache the distributions? (Should these be biased?)
 	r := rand.NewDRBG(seed)
-	c.burstDist = discretedist.NewUniform(r, 1, c.conn.maxRecordSize, 100, false)
-	c.shortDist = discretedist.NewUniform(r, tentp.FramingOverhead+tentp.PayloadOverhead, c.conn.maxRecordSize, 100, false)
+	p.burstDist = discretedist.NewUniform(r, 1, p.conn.maxRecordSize, 100, false)
+	p.shortDist = discretedist.NewUniform(r, tentp.FramingOverhead+tentp.PayloadOverhead, p.conn.maxRecordSize, 100, false)
 
 	// IAT delay dist between 0 to 25 ms.
 	// Note: This is always needed due to the short write obfsucation strategy.
-	c.delayDist = discretedist.NewUniform(r, 0, 5*1000, 100, false)
-	if !c.conn.isClient {
+	p.delayDist = discretedist.NewUniform(r, 0, 5*1000, 100, false)
+	if !p.conn.isClient {
 		// Add random [0, 2 * tau) read delay to mask timings on data
 		// fed to the upstream as well.
-		c.conn.enableReadDelay = true
+		p.conn.enableReadDelay = true
 	}
 
 	// There's a fundemental mismatch between what our idea of a packet should
@@ -205,5 +204,5 @@ func newObfs4Padding(conn *commonConn, m PaddingMethod, seed []byte) (paddingImp
 	// disconnect.
 	conn.setNagle(true)
 
-	return c, nil
+	return p, nil
 }

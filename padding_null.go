@@ -38,18 +38,18 @@ type nullPadding struct {
 	recvBuf bytes.Buffer
 }
 
-func (c *nullPadding) Write(p []byte) (int, error) {
+func (p *nullPadding) Write(b []byte) (int, error) {
 	// Break the write up into records, and send them out on the wire.  The
 	// kernel is better at breaking writes into appropriate sized packets than
 	// any userland app will be (at least with TCP), so use the maximum record
 	// size permitted by the framing layer as padding isn't a concern.
-	for off, left := 0, len(p); left > 0; {
+	for off, left := 0, len(b); left > 0; {
 		wrSize := tentp.MaxPlaintextRecordSize
 		if left < wrSize {
 			wrSize = left
 		}
 
-		if err := c.conn.SendRawRecord(framing.CmdData, p[off:off+wrSize], 0); err != nil {
+		if err := p.conn.SendRawRecord(framing.CmdData, b[off:off+wrSize], 0); err != nil {
 			return 0, err
 		}
 
@@ -57,25 +57,25 @@ func (c *nullPadding) Write(p []byte) (int, error) {
 		left -= wrSize
 	}
 
-	return len(p), nil
+	return len(b), nil
 }
 
-func (c *nullPadding) Read(p []byte) (n int, err error) {
-	return paddingImplGenericRead(c.conn, &c.recvBuf, p)
+func (p *nullPadding) Read(b []byte) (n int, err error) {
+	return paddingImplGenericRead(p.conn, &p.recvBuf, b)
 }
 
-func (c *nullPadding) OnClose() {
-	c.recvBuf.Reset()
+func (p *nullPadding) OnClose() {
+	p.recvBuf.Reset()
 }
 
 func newNullPadding(conn *commonConn) paddingImpl {
-	c := new(nullPadding)
-	c.conn = conn
+	p := new(nullPadding)
+	p.conn = conn
 
 	// The net package default beahvior is to disable Nagle's algorithm,
 	// but it's more efficient to enable it, since the kernel will handle
 	// framing better than we can, especially for this use case.
 	conn.setNagle(true)
 
-	return c
+	return p
 }

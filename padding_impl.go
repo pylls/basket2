@@ -28,7 +28,7 @@ type paddingImpl interface {
 	OnClose()
 }
 
-func paddingImplGenericRead(conn *commonConn, recvBuf *bytes.Buffer, p []byte) (n int, err error) {
+func paddingImplGenericRead(conn *commonConn, recvBuf *bytes.Buffer, b []byte) (n int, err error) {
 	// This buffering strategy will return short reads, since a new record
 	// is only consumed off the network once the entirety of the previous
 	// record has been returned.  A goroutine that consumes off the network
@@ -56,7 +56,7 @@ func paddingImplGenericRead(conn *commonConn, recvBuf *bytes.Buffer, p []byte) (
 
 	// Service the Read using buffered payload.
 	if recvBuf.Len() > 0 && err == nil {
-		n, _ = recvBuf.Read(p)
+		n, _ = recvBuf.Read(b)
 	}
 	return
 }
