@@ -145,10 +145,11 @@ func overridePaddingMethods(s string) error {
 		// Disable some of the padding methods, that shouldn't be allowed
 		// unless the admin knows what they are doing.
 		for _, m := range enabledPaddingMethods {
-			if m == basket2.PaddingNull {
-				continue
+			switch m {
+			case basket2.PaddingNull, basket2.PaddingTamaraw:
+			default:
+				methods = append(methods, m)
 			}
-			methods = append(methods, m)
 		}
 	} else {
 		// Parse the user specified methods.

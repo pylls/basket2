@@ -74,6 +74,7 @@ var (
 	ErrNotSupported = errors.New("basket2: operation not supported")
 
 	supportedPaddingMethods = []PaddingMethod{
+		PaddingTamaraw,
 		PaddingObfs4BurstIAT,
 		PaddingObfs4Burst,
 		PaddingNull,
@@ -118,6 +119,8 @@ func (m PaddingMethod) ToString() string {
 		return "Obfs4Burst"
 	case PaddingObfs4BurstIAT:
 		return "Obfs4BurstIAT"
+	case PaddingTamaraw:
+		return "Tamaraw"
 	default:
 		return "[Unknown algorithm]"
 	}
@@ -133,6 +136,8 @@ func PaddingMethodFromString(s string) PaddingMethod {
 		return PaddingObfs4Burst
 	case "Obfs4BurstIAT":
 		return PaddingObfs4BurstIAT
+	case "Tamaraw":
+		return PaddingTamaraw
 	default:
 		return PaddingInvalid
 	}
@@ -357,6 +362,8 @@ func (c *commonConn) setPadding(method PaddingMethod, params []byte) error {
 		if err != nil {
 			return err
 		}
+	case PaddingTamaraw:
+		c.impl = newTamarawPadding(c, c.isClient)
 	default:
 		return ErrInvalidPadding
 	}
@@ -446,7 +453,7 @@ func (c *commonConn) RecvRawRecord() (cmd byte, msg []byte, err error) {
 		// Record with no payload, return early.
 		return
 	}
-	if c.enforceRecordSize && want > c.maxRecordSize {
+	if c.enforceRecordSize && want > c.maxRecordSize+tentp.PayloadOverhead {
 		return 0, nil, ErrMsgSize
 	}
 

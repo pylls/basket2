@@ -153,11 +153,17 @@ func (s *serverState) initPaddingParams() error {
 }
 
 func (s *serverState) getPaddingParams(method basket2.PaddingMethod) ([]byte, error) {
-	params, ok := s.paddingParams[method]
-	if !ok {
-		return nil, basket2.ErrInvalidPadding
+	switch method {
+	case basket2.PaddingNull, basket2.PaddingTamaraw:
+		// These algorithms are unparameterized.
+		return nil, nil
+	default:
+		params, ok := s.paddingParams[method]
+		if !ok {
+			return nil, basket2.ErrInvalidPadding
+		}
+		return params, nil
 	}
-	return params, nil
 }
 
 func (s *serverState) acceptLoop() error {
