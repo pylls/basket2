@@ -205,7 +205,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	// XXX: Support for overriding the padding algorithms etc.
 	if err := overrideKEXMethods(*kexMethodsStr); err != nil {
 		golog.Fatalf("%s: [ERROR]: Failed to set KEX methods: %v", execName, err)
 	}
