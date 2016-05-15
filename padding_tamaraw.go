@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"git.schwanenlied.me/yawning/basket2.git/framing"
+	"git.schwanenlied.me/yawning/basket2.git/framing/tentp"
+	"git.schwanenlied.me/yawning/basket2.git/internal/tcpinfo"
 )
 
 const (
@@ -87,13 +89,38 @@ func (p *tamarawPadding) workerOnBurst(b []byte) error {
 	nPaddingSegs := 0
 	canIdleAt := time.Now().Add(minIdleTime)
 
+	sleepRho := func() {
+		// Instead of scheduling packets at absolute intervals, draw from
+		// the CS-BuFLO design and sample a random value [0, 2*rho), to
+		// avoid leaking load information.
+		//
+		// CS-BuFLO uses an adaptive value for `rho`, which may be a good
+		// idea...
+		rho := time.Duration(p.conn.mRNG.Intn(2*p.rho)) * time.Microsecond
+		time.Sleep(rho)
+	}
+
 	for {
-		// XXX: Check channel capacity, if supported.
+		// Check channel capacity, if supported.
 		//
 		// Tamaraw will happily choke itself by clogging up the link with
 		// padding, CS-BuFLO will start to back off when the send socket
 		// buffer is full.  Follow in the footsteps of the original basket
 		// code and use TCP_INFO (or similar).
+		if p.fConn != nil {
+			linkCapacity, err := tcpinfo.EstimatedWriteCapacity(p.fConn)
+			if err == nil {
+				const hdrOverhead = 20 + 20 // Assuming IPv4 is prolly ok.
+				const tentOverhead = tentp.FramingOverhead + tentp.PayloadOverhead
+				if linkCapacity < hdrOverhead+tentOverhead+p.lPpad {
+					// Either insufficient buffer space, or the link is
+					// snd_cwnd bound.  Writes now will just block/get
+					// queued, so there's no point.
+					sleepRho()
+					continue
+				}
+			}
+		}
 
 		// Send the data (or pure padding), and update accounting.
 		padLen := p.lPpad - len(b)
@@ -105,14 +132,8 @@ func (p *tamarawPadding) workerOnBurst(b []byte) error {
 		}
 		nSegs++
 
-		// Instead of scheduling packets at absolute intervals, draw from
-		// the CS-BuFLO design and sample a random value [0, 2*rho), to
-		// avoid leaking load information.
-		//
-		// CS-BuFLO uses an adaptive value for `rho`, which may be a good
-		// idea...
-		rho := time.Duration(p.conn.mRNG.Intn(2*p.rho)) * time.Microsecond
-		time.Sleep(rho)
+		// Delay after the send.
+		sleepRho()
 
 		// Obtain further data from the channel.
 		b = nil
@@ -175,12 +196,12 @@ func (p *tamarawPadding) OnClose() {
 	p.recvBuf.Reset()
 
 	// Close the send channel and wait for the worker to finish.
-	close(p.sendChan)
-	p.Wait()
-
 	if p.fConn != nil {
 		p.fConn.Close()
 	}
+	close(p.sendChan)
+	p.Wait()
+
 }
 
 func newTamarawPadding(conn *commonConn, isClient bool) paddingImpl {
