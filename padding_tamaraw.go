@@ -236,6 +236,9 @@ func newTamarawPadding(conn *commonConn, isClient bool) paddingImpl {
 		p.rho = 5 * 1000               // ms -> usec
 		p.lPpad = p.conn.maxRecordSize // Could lower it by 2 for PPPoE links.
 		p.lSeg = 500
+
+		// Random read side delivery jitter.
+		p.conn.enableReadDelay = true
 	}
 
 	p.Add(1)

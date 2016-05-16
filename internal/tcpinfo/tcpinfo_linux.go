@@ -55,6 +55,9 @@ func writeCapacityImpl(f *os.File) (int, error) {
 	socketSpace := sndbufcap - sndbuflen
 
 	// Determine the tcp_space via a TCP_INFO getsockopt() call.
+	//
+	// Linux 4.6.0 and later have tcpi_notsent_bytes, but it will be forever
+	// till I can assume that's present.
 	var info syscall.TCPInfo
 	infoLen := uint32(syscall.SizeofTCPInfo)
 	if _, _, e1 := syscall.Syscall6(syscall.SYS_GETSOCKOPT, fd, syscall.SOL_TCP, syscall.TCP_INFO, uintptr(unsafe.Pointer(&info)), uintptr(unsafe.Pointer(&infoLen)), 0); e1 != 0 {
