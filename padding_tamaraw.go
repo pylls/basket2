@@ -79,8 +79,9 @@ func (p *tamarawPadding) writeWorker() {
 }
 
 func (p *tamarawPadding) workerOnBurst(b []byte) error {
-	// CS-BuFLO uses 2 seconds, basket1 uses 250 ms...  Not sure which is
-	// correct, the lower the better for efficiency but...
+	// CS-BuFLO uses 2 seconds, basket1 uses 250 ms...  Not sure what the
+	// best thing to do here is.  Shorter is better for efficiency, but
+	// I suspect this doesn't matter too much.
 	const minIdleTime = 50 * time.Millisecond
 
 	// Unblocked due to data entering the send channel, indicating the start
@@ -220,7 +221,13 @@ func newTamarawPadding(conn *commonConn, isClient bool) paddingImpl {
 	//  Client: rho: 20 ms, l ppad: 800 bytes, Lseg: 500 segments
 	//  Server: rho: 5 ms, l ppad: 1500 bytes, Lseg: 500 segments
 	//
-	//  Lseg = 100 may also be sufficient, it's a tradeoff.
+	// The l ppad numbers were chosed for a non-tor data set, which is
+	// a poor value for basket2 given that Tor for the most part uses
+	// fixed length cells.
+	//
+	// Lseg = 100 gives a maximum attacker accuracy of 0.59, while 500
+	// reduces that to ~0.35.
+	//
 
 	if isClient {
 		// Tune for "short infrequent bursts".
@@ -229,13 +236,13 @@ func newTamarawPadding(conn *commonConn, isClient bool) paddingImpl {
 		// end of the padding doesn't gain much, so lowering Lseg may be
 		// acceptable.
 		p.rho = 20 * 1000 // ms -> usec
-		p.lPpad = 800     // 543 is a single Tor cell, might be better.
-		p.lSeg = 500
+		p.lPpad = 543     // Tuned for a single Tor cell in a TLS record.
+		p.lSeg = 100
 	} else {
 		// Tune for "bulk data transfer".
 		p.rho = 5 * 1000               // ms -> usec
 		p.lPpad = p.conn.maxRecordSize // Could lower it by 2 for PPPoE links.
-		p.lSeg = 500
+		p.lSeg = 100
 
 		// Random read side delivery jitter.
 		p.conn.enableReadDelay = true
