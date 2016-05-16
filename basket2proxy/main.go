@@ -106,6 +106,18 @@ func copyLoop(bConn, orConn net.Conn, addrStr string) {
 
 	wg.Wait()
 
+	// Log per-connection stats.
+	var statsStr string
+	switch c := bConn.(type) {
+	case *basket2.ClientConn:
+		statsStr = c.Stats().ToString()
+	case *basket2.ServerConn:
+		statsStr = c.Stats().ToString()
+	}
+	if statsStr != "" {
+		log.Debugf("%s: %s", addrStr, statsStr)
+	}
+
 	var err error
 	if len(errChan) > 0 {
 		err = <-errChan

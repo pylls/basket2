@@ -110,7 +110,7 @@ func (m PaddingMethod) ToHexString() string {
 	return fmt.Sprintf("%02x", m)
 }
 
-// ToString returms the descriptive string reppresentaiton of a padding method.
+// ToString returms the descriptive string representaiton of a padding method.
 func (m PaddingMethod) ToString() string {
 	switch m {
 	case PaddingNull:
@@ -143,11 +143,34 @@ func PaddingMethodFromString(s string) PaddingMethod {
 	}
 }
 
+// ConnStats contains the per-connection metrics useful for examining the
+// overhead/performance of the various padding algorithms.
+type ConnStats struct {
+	RxBytes         uint64
+	RxOverheadBytes uint64
+	RxPayloadBytes  uint64
+	RxPaddingBytes  uint64
+
+	TxBytes         uint64
+	TxOverheadBytes uint64
+	TxPayloadBytes  uint64
+	TxPaddingBytes  uint64
+}
+
+// ToString returns the descriptive string representation of the connection
+// statistics.
+func (s *ConnStats) ToString() string {
+	rxGoodput := float64(s.RxPayloadBytes) / float64(s.RxBytes)
+	txGoodput := float64(s.TxPayloadBytes) / float64(s.TxBytes)
+	return fmt.Sprintf("Receive: Total: %v Overhead: %v Payload: %v Padding: %v Goodput: %v Trasmit: Total: %v Overhead: %v Payload: %v Padding: %v Goodput: %v", s.RxBytes, s.RxOverheadBytes, s.RxPayloadBytes, s.RxPaddingBytes, rxGoodput, s.TxBytes, s.TxOverheadBytes, s.TxPayloadBytes, s.TxPaddingBytes, txGoodput)
+}
+
 type commonConn struct {
 	sync.Mutex
 
 	mRNG  *mrand.Rand
 	state connState
+	stats ConnStats
 
 	rawConn net.Conn
 
@@ -164,10 +187,9 @@ type commonConn struct {
 	isClient bool
 }
 
-// Conn returns the raw underlying net.Conn associated with the basket2
-// connection.
-func (c *commonConn) Conn() net.Conn {
-	return c.rawConn
+// Stats returns the connection's ConnStats structure.
+func (c *commonConn) Stats() *ConnStats {
+	return &c.stats
 }
 
 // Write writes len(p) bytes to the stream, and returns the number of bytes
@@ -412,6 +434,11 @@ func (c *commonConn) SendRawRecord(cmd byte, msg []byte, padLen int) (err error)
 		return io.ErrShortWrite
 	}
 
+	c.stats.TxBytes += uint64(len(rec))
+	c.stats.TxPayloadBytes += uint64(len(msg))
+	c.stats.TxOverheadBytes += uint64(len(rec) - (len(msg) + padLen))
+	c.stats.TxPaddingBytes += uint64(padLen)
+
 	return
 }
 
@@ -441,6 +468,8 @@ func (c *commonConn) RecvRawRecord() (cmd byte, msg []byte, err error) {
 	if err != nil {
 		return
 	}
+	c.stats.RxBytes += tentp.FramingOverhead
+	c.stats.RxOverheadBytes += tentp.FramingOverhead
 
 	// Validate the command direction bit.
 	cmdCtoS := cmd&framing.CmdServer == 0
@@ -465,6 +494,11 @@ func (c *commonConn) RecvRawRecord() (cmd byte, msg []byte, err error) {
 	if msg, err = c.rxDecoder.DecodeRecordBody(recBody); err != nil {
 		return
 	}
+
+	c.stats.RxBytes += uint64(want)
+	c.stats.RxOverheadBytes += tentp.PayloadOverhead
+	c.stats.RxPayloadBytes += uint64(len(msg))
+	c.stats.RxPaddingBytes += uint64(want - (tentp.PayloadOverhead + len(msg)))
 
 	return
 }
