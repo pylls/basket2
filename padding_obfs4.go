@@ -154,7 +154,7 @@ func (p *obfs4Padding) largeWrite(b []byte) (n int, err error) {
 }
 
 func (p *obfs4Padding) Write(b []byte) (n int, err error) {
-	if len(b) > p.conn.maxRecordSize {
+	if len(b) < p.conn.maxRecordSize {
 		n, err = p.shortWrite(b)
 	} else {
 		n, err = p.largeWrite(b)
