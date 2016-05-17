@@ -47,7 +47,8 @@ const (
 	minReqExtDataSize  = 1 + 1 + 1 // Version, nrPaddingAlgs, > 1 padding alg.
 	minRespExtDataSize = 1 + 1 + 1 // Version, authPolicy, padding alg.
 
-	tauReadDelay = 5000 // Microseconds.
+	tauReadDelay          = 5000 // Microseconds.
+	defaultCopyBufferSize = 32 * 1024
 )
 
 var (
@@ -181,6 +182,7 @@ type commonConn struct {
 	paddingMethod PaddingMethod
 
 	maxRecordSize     int
+	copyBufferSize    int
 	enforceRecordSize bool
 	enableReadDelay   bool
 
@@ -190,6 +192,16 @@ type commonConn struct {
 // Stats returns the connection's ConnStats structure.
 func (c *commonConn) Stats() *ConnStats {
 	return &c.stats
+}
+
+// SetCopyBufferSize sets the hint used to detect large bulk transfers
+// when the connection is the destination side of io.Copy()/io.CopyBuffer().
+// By default something sensible for io.Copy() will be used.
+func (c *commonConn) SetCopyBufferSize(sz int) {
+	if sz <= 0 {
+		panic("basket2: SetCopyBufferSize called with invalid value")
+	}
+	c.copyBufferSize = sz
 }
 
 // Write writes len(p) bytes to the stream, and returns the number of bytes
@@ -276,6 +288,7 @@ func (c *commonConn) initConn(conn net.Conn) error {
 
 	c.paddingMethod = PaddingInvalid
 	c.mRNG = rand.New()
+	c.copyBufferSize = defaultCopyBufferSize
 
 	// Derive the "max" record size based off the remote address,
 	// under the assumption that 1500 byte MTU ethernet is in use.

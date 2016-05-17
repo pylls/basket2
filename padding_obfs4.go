@@ -113,7 +113,7 @@ func (p *obfs4Padding) largeWrite(b []byte) (n int, err error) {
 	// enabled).
 
 	remaining := len(b)
-	isLargeWrite := remaining >= 32*1024 // XXX: What about CopyBuffer?
+	isLargeWrite := remaining >= p.conn.copyBufferSize
 
 	tailPadLen := p.burstDist.Sample(p.conn.mRNG)
 	// tailPadLen += c.conn.maxRecordSize * c.conn.mRNG.Intn(3)
