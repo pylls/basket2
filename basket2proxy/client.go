@@ -135,6 +135,9 @@ func (s *clientState) connHandler(socksConn *pt.SocksConn) error {
 		socksConn.Reject()
 		return err
 	}
+	if copyBufferSize != 0 {
+		bConn.SetCopyBufferSize(copyBufferSize)
+	}
 
 	// Handle the proxy.
 	dialFn := proxy.Direct.Dial

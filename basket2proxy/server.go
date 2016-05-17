@@ -219,6 +219,9 @@ func (s *serverState) connHandler(conn net.Conn) error {
 		log.Errorf("%s: Failed to initialize basket2 server conn: %v", addrStr, err)
 		return err
 	}
+	if copyBufferSize != 0 {
+		bConn.SetCopyBufferSize(copyBufferSize)
+	}
 
 	// Handshake with the peer.
 	if err = conn.SetDeadline(time.Now().Add(serverHandshakeTimeout)); err != nil {

@@ -56,6 +56,7 @@ var (
 
 	enabledPaddingMethods []basket2.PaddingMethod
 	enabledKEXMethods     []handshake.KEXMethod
+	copyBufferSize        int
 )
 
 func isEnabledKEXMethod(m handshake.KEXMethod) bool {
@@ -93,14 +94,30 @@ func copyLoop(bConn, orConn net.Conn, addrStr string) {
 		defer wg.Done()
 		defer orConn.Close()
 		defer bConn.Close()
-		_, err := io.Copy(orConn, bConn)
+
+		var err error
+		if copyBufferSize == 0 {
+			_, err = io.Copy(orConn, bConn)
+		} else {
+			buf := make([]byte, copyBufferSize)
+			_, err = io.CopyBuffer(orConn, bConn, buf)
+		}
+
 		errChan <- err
 	}()
 	go func() {
 		defer wg.Done()
 		defer bConn.Close()
 		defer orConn.Close()
-		_, err := io.Copy(bConn, orConn)
+
+		var err error
+		if copyBufferSize == 0 {
+			_, err = io.Copy(bConn, orConn)
+		} else {
+			buf := make([]byte, copyBufferSize)
+			_, err = io.CopyBuffer(bConn, orConn, buf)
+		}
+
 		errChan <- err
 	}()
 
@@ -192,6 +209,7 @@ func main() {
 	showAlgorithms := flag.Bool("algorithms", false, "Show supported algorithms and exit")
 	kexMethodsStr := flag.String("kexMethods", "", "Key exchange methods")
 	paddingMethodsStr := flag.String("paddingMethods", "", "Padding methods")
+	bufferSizeArg := flag.Int("bufferSize", 0, "Size of internal per connection buffers (32 KiB per direction)")
 	flag.Parse()
 
 	// Populate the lists of supported algorithms.
@@ -222,6 +240,12 @@ func main() {
 	}
 	if err := overridePaddingMethods(*paddingMethodsStr); err != nil {
 		golog.Fatalf("%s: [ERROR]: Failed to set padding methods: %v", execName, err)
+	}
+	if *bufferSizeArg != 0 {
+		copyBufferSize = *bufferSizeArg
+		if copyBufferSize < 8*1024 {
+			golog.Fatalf("%s: [ERROR]: Buffer size must be at least 8 KiB", execName)
+		}
 	}
 
 	// Common PT initialization (primarily for the stateDir).

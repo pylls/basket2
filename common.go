@@ -288,7 +288,9 @@ func (c *commonConn) initConn(conn net.Conn) error {
 
 	c.paddingMethod = PaddingInvalid
 	c.mRNG = rand.New()
-	c.copyBufferSize = defaultCopyBufferSize
+	if c.copyBufferSize == 0 {
+		c.copyBufferSize = defaultCopyBufferSize
+	}
 
 	// Derive the "max" record size based off the remote address,
 	// under the assumption that 1500 byte MTU ethernet is in use.
