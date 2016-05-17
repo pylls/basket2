@@ -97,6 +97,12 @@ func (s *serverState) getPtArgs() (*pt.Args, error) {
 }
 
 func (s *serverState) initPaddingParams() error {
+	// We need sensible padding parameters for *all* supported algorithms.
+	methods := []basket2.PaddingMethod{
+		basket2.PaddingObfs4Burst,
+		basket2.PaddingObfs4BurstIAT,
+	}
+
 	paramsFile := path.Join(stateDir, bridgeParamsFile)
 	jsonBlob, err := ioutil.ReadFile(paramsFile)
 	if err != nil {
@@ -105,29 +111,15 @@ func (s *serverState) initPaddingParams() error {
 			return err
 		}
 
-		// Generate sensible padding parameters for *all* supported algorithms.
-		methods := []basket2.PaddingMethod{
-			basket2.PaddingObfs4Burst,
-			basket2.PaddingObfs4BurstIAT,
-		}
 		for _, m := range methods {
 			s.paddingParams[m], err = basket2.DefaultPaddingParams(m)
 			if err != nil {
-				log.Errorf("faild to generate params for '%v': %v", m, err)
+				log.Errorf("Failed to generate params for '%v': %v", m.ToString(), err)
 				return err
 			}
 		}
 
-		// Serialize the padding parameters.
-		jsonMap := make(map[string][]byte)
-		for k, v := range s.paddingParams {
-			jsonMap[k.ToString()] = v
-		}
-		if jsonBlob, err = json.Marshal(jsonMap); err != nil {
-			log.Errorf("Failed to serialize padding params: %v", err)
-			return err
-		}
-		return ioutil.WriteFile(paramsFile, jsonBlob, os.ModeExclusive|fileMode)
+		return s.savePaddingParams(paramsFile)
 	}
 
 	// Deserialize the JSON blob.
@@ -137,19 +129,43 @@ func (s *serverState) initPaddingParams() error {
 		return err
 	}
 
-	for k, v := range jsonMap {
-		m := basket2.PaddingMethodFromString(k)
-		if m == basket2.PaddingInvalid {
-			log.Errorf("Serialized padding params had unknown algorithm")
-			return basket2.ErrInvalidPadding
+	// Ensure that the serialized param file has all of the algorithms that
+	// are needed, and generate if neccecary.
+	dirty := false
+	for _, m := range methods {
+		mStr := m.ToString()
+		if params, ok := jsonMap[mStr]; ok {
+			s.paddingParams[m] = params
+		} else {
+			log.Infof("Serialized padding params missing for '%v' generating", mStr)
+			s.paddingParams[m], err = basket2.DefaultPaddingParams(m)
+			if err != nil {
+				log.Errorf("Failed to generate params for '%v': %v", mStr, err)
+			}
+			dirty = true
 		}
-		s.paddingParams[m] = v
 	}
 
-	// TODO: This should generate params for algorithms that are missing, but
-	// that can wait till I add a bunch of algorithms.
+	if dirty {
+		return s.savePaddingParams(paramsFile)
+	}
 
 	return nil
+}
+
+func (s *serverState) savePaddingParams(paramsFile string) error {
+	// Serialize the padding parameters.
+	jsonMap := make(map[string][]byte)
+	for k, v := range s.paddingParams {
+		jsonMap[k.ToString()] = v
+	}
+
+	jsonBlob, err := json.Marshal(jsonMap)
+	if err != nil {
+		log.Errorf("Failed to serialize padding params: %v", err)
+		return err
+	}
+	return ioutil.WriteFile(paramsFile, jsonBlob, os.ModeExclusive|fileMode)
 }
 
 func (s *serverState) getPaddingParams(method basket2.PaddingMethod) ([]byte, error) {
