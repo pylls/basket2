@@ -21,6 +21,7 @@ import (
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
+	"git.schwanenlied.me/yawning/basket2.git/framing"
 	"git.schwanenlied.me/yawning/basket2.git/handshake"
 )
 
@@ -39,6 +40,12 @@ type ServerConfig struct {
 	// per-connection padding parameters used to instantiate the server side
 	// padding algorithm (that will also be propagated back to the client).
 	PaddingParamFn func(PaddingMethod) ([]byte, error)
+
+	// AuthFn is the function called at handshake time to validate the
+	// authentication received from the client.  It is expected to return if
+	// the authentication was valid, and the amoung of padding to apply to
+	// the response message.
+	AuthFn func(conn *ServerConn, transcriptDigest []byte, reqMsg []byte) (ok bool, padLen int)
 }
 
 // ServerConn is a server side client connection instance, that implements the
@@ -154,12 +161,22 @@ func (s *ServerConn) authenticate(transcriptDigest []byte) error {
 	}
 
 	// Receive the peer's authenticate frame.
+	reqCmd, reqMsg, err := s.RecvRawRecord()
+	if err != nil {
+		return err
+	}
+	if reqCmd != framing.CmdAuthenticate {
+		return ErrInvalidAuth
+	}
 
-	// Verify that the peer has signed keys.TranscriptDigest.
+	// Verify that the authentication is correct.
+	ok, padLen := s.config.AuthFn(s, transcriptDigest, reqMsg)
+	if !ok {
+		return ErrInvalidAuth
+	}
 
 	// Send an authetication response.
-
-	return ErrNotSupported
+	return s.SendRawRecord(framing.CmdAuthenticate, nil, padLen)
 }
 
 // NewServerConn initializes a ServerConn.  Unlike NewClientConn this step may
@@ -178,6 +195,9 @@ func NewServerConn(config *ServerConfig) (*ServerConn, error) {
 	}
 	if config.ServerPrivateKey == nil {
 		panic("basket2: no server private key")
+	}
+	if config.AuthPolicy == AuthMust && config.AuthFn == nil {
+		panic("basket2: auth required but no AuthFn")
 	}
 	if config.PaddingParamFn == nil {
 		config.PaddingParamFn = DefaultPaddingParams

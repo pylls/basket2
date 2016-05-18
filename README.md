@@ -15,7 +15,7 @@ Features:
  * Better separation between the handshake obfuscation and the authenticated
    key exchange mechanisms.
  * Significantly improved link layer framing.
- * (TODO) Optional user authentication.
+ * Optional user authentication.
  * Post-quantum forward secrecy.
  * License switch from 3BSD to AGPL for more Freedom.
 

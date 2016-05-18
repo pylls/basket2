@@ -21,6 +21,7 @@ import (
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
+	"git.schwanenlied.me/yawning/basket2.git/framing"
 	"git.schwanenlied.me/yawning/basket2.git/handshake"
 )
 
@@ -30,6 +31,12 @@ type ClientConfig struct {
 	KEXMethod       handshake.KEXMethod
 	PaddingMethods  []PaddingMethod
 	ServerPublicKey *identity.PublicKey
+
+	// AuthFn is the function called at handshake time to authenticate with
+	// the remote peer.  It is expected to return the authentication request
+	// message, the amount of padding to add, or an error if it is not
+	// possible to authenticate.
+	AuthFn func(conn *ClientConn, transcriptDigest []byte) (reqMsg []byte, padLen int, err error)
 }
 
 // ClientConn is a client connection instance, that implements the net.Conn
@@ -133,11 +140,35 @@ func (c *ClientConn) authenticate(transcriptDigest []byte) error {
 		return err
 	}
 
-	// Sign TranscriptDigest, and send the authentication request.
+	// Caller didn't provide an authentication callback.
+	if c.config.AuthFn == nil {
+		return ErrInvalidAuth
+	}
+
+	// Caller does something with transcriptDigest and returns the auth
+	// packet payload and pad length.
+	reqMsg, padLen, err := c.config.AuthFn(c, transcriptDigest)
+	if err != nil {
+		return err
+	}
+
+	// Send the Authenticate packet.
+	if err = c.SendRawRecord(framing.CmdAuthenticate, reqMsg, padLen); err != nil {
+		return err
+	}
 
 	// Receive the authentication response.
+	respCmd, respMsg, err := c.RecvRawRecord()
+	if err != nil {
+		return err
+	}
+	if respCmd != framing.CmdAuthenticate || len(respMsg) != 0 {
+		// On success, expect an Authenticate packet with no payload.
+		return ErrInvalidAuth
+	}
 
-	return ErrNotSupported
+	// Authentication successful.
+	return nil
 }
 
 // NewClientConn initializes a ClientConn.  This step should be done offline,

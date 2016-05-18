@@ -71,6 +71,10 @@ var (
 	// extData is invalid.
 	ErrInvalidExtData = errors.New("basket2: invalid ext data")
 
+	// ErrInvalidAuth is the error returned when the authentication credentials
+	// or signature was invalid, or the client authentication otherwise failed.
+	ErrInvalidAuth = errors.New("basket2: invalid auth")
+
 	// ErrNotSupported is the error returned on an unsupported call.
 	ErrNotSupported = errors.New("basket2: operation not supported")
 
