@@ -30,7 +30,6 @@ import (
 	"git.schwanenlied.me/yawning/basket2.git/framing"
 	"git.schwanenlied.me/yawning/basket2.git/framing/tentp"
 
-	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -100,7 +99,7 @@ func (o *clientObfsCtx) handshake(rw io.ReadWriter, msg []byte, padLen int) ([]b
 	reqBlob = append(reqBlob, o.repr[:]...)
 	macHash := sha3.New256()
 	macHash.Write(obfsMACTweak[:])
-	macHash.Write(o.serverPublicKey.KEXPublicKey[:])
+	macHash.Write(o.serverPublicKey.ToBytes())
 	macHash.Write(o.repr[:])
 	macHash.Write(epochHour[:])
 	reqBlob = macHash.Sum(reqBlob)
@@ -109,7 +108,7 @@ func (o *clientObfsCtx) handshake(rw io.ReadWriter, msg []byte, padLen int) ([]b
 	keyHash := sha3.NewShake256()
 	defer keyHash.Reset()
 	keyHash.Write(obfsKdfTweak)
-	keyHash.Write(o.serverPublicKey.KEXPublicKey[:])
+	keyHash.Write(o.serverPublicKey.ToBytes())
 	keyHash.Write(o.sharedSecret[:])
 	keyHash.Write(reqBlob[32:64]) // Include the MAC in the KDF input.
 
@@ -217,8 +216,8 @@ func newClientObfs(rand io.Reader, serverPublicKey *identity.PublicKey) (*client
 
 	// Calculate a shared secret with our ephemeral key, and the server's
 	// long term public key.
-	curve25519.ScalarMult(&o.sharedSecret, &o.privKey, &o.serverPublicKey.KEXPublicKey)
-	if crypto.MemIsZero(o.sharedSecret[:]) {
+	ok := serverPublicKey.ScalarMult(&o.sharedSecret, &o.privKey)
+	if !ok {
 		return nil, ErrInvalidPoint
 	}
 
@@ -269,7 +268,7 @@ func (o *serverObfsCtx) recvHandshakeReq(r io.Reader) ([]byte, error) {
 
 		macHash := sha3.New256()
 		macHash.Write(obfsMACTweak[:])
-		macHash.Write(o.keypair.KEXPublicKey[:])
+		macHash.Write(o.keypair.PublicKey.ToBytes())
 		macHash.Write(repr[:])
 		macHash.Write(epochHour[:])
 
@@ -309,7 +308,7 @@ func (o *serverObfsCtx) recvHandshakeReq(r io.Reader) ([]byte, error) {
 	// sent.
 	o.keyHash = sha3.NewShake256()
 	o.keyHash.Write(obfsKdfTweak)
-	o.keyHash.Write(o.keypair.KEXPublicKey[:])
+	o.keyHash.Write(o.keypair.PublicKey.ToBytes())
 	o.keyHash.Write(o.sharedSecret[:])
 	o.keyHash.Write(mac[:]) // Include the MAC in the KDF input.
 	dec, err := tentp.NewDecoderFromKDF(o.keyHash)

@@ -40,7 +40,7 @@ import (
 const (
 	bridgeFile          = "basket2_bridgeline.txt"
 	bridgeParamsFile    = "basket2_params.json"
-	privateIdentityFile = "basket2_ed25519.priv"
+	privateIdentityFile = "basket2_x25519.priv"
 	fileMode            = 0600
 
 	serverHandshakeTimeout = time.Duration(30) * time.Second

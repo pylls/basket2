@@ -24,11 +24,8 @@ import (
 )
 
 func comparePublic(a, b *PublicKey) error {
-	if !bytes.Equal(a.DSAPublicKey[:], b.DSAPublicKey[:]) {
-		return errors.New("DSA public key mismatch")
-	}
-	if !bytes.Equal(a.KEXPublicKey[:], b.KEXPublicKey[:]) {
-		return errors.New("KEX public key mismatch")
+	if !bytes.Equal(a.PublicKey[:], b.PublicKey[:]) {
+		return errors.New("public key mismatch")
 	}
 	return nil
 }
@@ -37,11 +34,8 @@ func comparePrivate(a, b *PrivateKey) error {
 	if err := comparePublic(&a.PublicKey, &b.PublicKey); err != nil {
 		return err
 	}
-	if !bytes.Equal(a.DSAPrivateKey[:], b.DSAPrivateKey[:]) {
-		return errors.New("DSA private key mismatch")
-	}
-	if !bytes.Equal(a.KEXPrivateKey[:], b.KEXPrivateKey[:]) {
-		return errors.New("KEX private key mismatch")
+	if !bytes.Equal(a.PrivateKey[:], b.PrivateKey[:]) {
+		return errors.New("private key mismatch")
 	}
 
 	return nil
@@ -53,7 +47,7 @@ func TestIdentity(t *testing.T) {
 		t.Fatalf("failed to generate identity key: %v", err)
 	}
 
-	k1, err := PrivateKeyFromBytes(k0.DSAPrivateKey[:])
+	k1, err := PrivateKeyFromBytes(k0.PrivateKey[:])
 	if err != nil {
 		t.Fatalf("failed to deseralize identity key: %v", err)
 	}
@@ -70,7 +64,7 @@ func TestIdentity(t *testing.T) {
 		t.Fatalf("PEM serialized SK: %v", err)
 	}
 
-	pk2, err := PublicKeyFromBytes(k0.DSAPublicKey[:])
+	pk2, err := PublicKeyFromBytes(k0.PublicKey.PublicKey[:])
 	if err != nil {
 		t.Fatalf("failed to deserialize identity public key: %v", err)
 	}

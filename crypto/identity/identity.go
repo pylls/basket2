@@ -14,12 +14,11 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package identity provides convinient wrapper types around an Ed25519/X25519
-// based keypair.  Both EdDSA and X25519 are supported with the same keypair.
+// Package identity provides convinient wrapper types around an X25519
+// keypair.
 package identity
 
 import (
-	gocrypto "crypto"
 	"encoding/base64"
 	"encoding/pem"
 	"errors"
@@ -27,11 +26,8 @@ import (
 	"runtime"
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
-	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
-	"git.schwanenlied.me/yawning/basket2.git/ext/x25519"
 
 	"golang.org/x/crypto/curve25519"
-	"golang.org/x/crypto/ed25519"
 )
 
 const (
@@ -39,18 +35,15 @@ const (
 	SharedSecretSize = 32
 
 	// PublicKeySize is the side of a PublicKey in bytes.
-	PublicKeySize = ed25519.PublicKeySize
+	PublicKeySize = 32
 
 	// PrivateKeySize is the size of a PrivateKey in bytes.
-	PrivateKeySize = ed25519.PrivateKeySize
-
-	// SignatureSize is the size of a Signature in bytes.
-	SignatureSize = ed25519.SignatureSize
+	PrivateKeySize = 32
 
 	maxKeygenAttempts = 8
 
-	publicKeyPEMType  = "ED25519 PUBLIC KEY"
-	privateKeyPEMType = "ED25519 PRIVATE KEY"
+	publicKeyPEMType  = "X25519 PUBLIC KEY"
+	privateKeyPEMType = "X25519 PRIVATE KEY"
 )
 
 var (
@@ -65,55 +58,48 @@ var (
 	identityRandTweak = []byte("basket2-identity-tweak")
 )
 
-// PrivateKey is a EdDSA private key and it's X25519 counterpart.
+// PrivateKey is a X25519 private key.
 type PrivateKey struct {
 	PublicKey
-	DSAPrivateKey ed25519.PrivateKey
-	KEXPrivateKey [32]byte
+	PrivateKey [32]byte
 }
 
-// ScalarMult derives a shared secret given a peer's public key suitable as
-// an input to a key derivation function, and returns true on success.  The
-// return value MUST be validated to thwart invalid point attacks.
+func (k *PrivateKey) genPublic() error {
+	curve25519.ScalarBaseMult(&k.PublicKey.PublicKey, &k.PrivateKey)
+	if !crypto.MemIsZero(k.PublicKey.PublicKey[:]) {
+		return nil
+	}
+	return ErrInvalidKey
+}
+
+// ScalarMult derives a shared secret given a peer's public key, suitable
+// for use as an input to a key derivation function, and returns true on
+// success.  The return value MUST be validated to thwart invalid point
+// attacks.
 func (k *PrivateKey) ScalarMult(secret *[SharedSecretSize]byte, publicKey *[PublicKeySize]byte) bool {
 	ok := !crypto.MemIsZero(publicKey[:])
-	curve25519.ScalarMult(secret, &k.KEXPrivateKey, publicKey)
+	curve25519.ScalarMult(secret, &k.PrivateKey, publicKey)
 	ok = ok && !crypto.MemIsZero(secret[:])
 	return ok
-}
-
-// Sign signs a message and returns a signature.
-func (k *PrivateKey) Sign(message []byte) []byte {
-	sig, err := k.DSAPrivateKey.Sign(rand.Reader, message, gocrypto.Hash(0))
-	if err != nil {
-		panic("identity: failed to sign: " + err.Error())
-	}
-	return sig
 }
 
 // Reset sanitizes private values from the PrivateKey such that they no longer
 // appear in memory.
 func (k *PrivateKey) Reset() {
-	crypto.Memwipe(k.DSAPrivateKey)
-	crypto.Memwipe(k.KEXPrivateKey[:])
+	crypto.Memwipe(k.PrivateKey[:])
 }
 
 // ToPEM serializes a private key to PEM format.
 func (k *PrivateKey) ToPEM() []byte {
 	block := &pem.Block{
 		Type:  privateKeyPEMType,
-		Bytes: k.DSAPrivateKey,
+		Bytes: k.PrivateKey[:],
 	}
 	return pem.EncodeToMemory(block)
 }
 
-func (k *PrivateKey) toCurve25519() error {
-	x25519.PrivateKeyToCurve25519(&k.KEXPrivateKey, k.DSAPrivateKey)
-	return k.PublicKey.toCurve25519()
-}
-
-// NewPrivateKey generates an Ed25519/X25519 keypair using the random source
-// rand (use crypto/rand.Reader).
+// NewPrivateKey generates a X25519 keypair using the random source rand (use
+// crypto/rand.Reader).
 func NewPrivateKey(rand io.Reader) (*PrivateKey, error) {
 	var err error
 	k := new(PrivateKey)
@@ -125,14 +111,11 @@ func NewPrivateKey(rand io.Reader) (*PrivateKey, error) {
 
 	runtime.SetFinalizer(k, finalizePrivateKey) // Not always run on exit.
 	for iters := 0; iters < maxKeygenAttempts; iters++ {
-		// Generate the Ed25519 keypair.
-		k.DSAPublicKey, k.DSAPrivateKey, err = ed25519.GenerateKey(h)
-		if err != nil {
+		// Generate the X25519 keypair.
+		if _, err := io.ReadFull(rand, k.PrivateKey[:]); err != nil {
 			return nil, err
 		}
-
-		// Generate the X25519 keypair.
-		if err = k.toCurve25519(); err == nil {
+		if err := k.genPublic(); err == nil {
 			return k, nil
 		}
 	}
@@ -163,11 +146,9 @@ func PrivateKeyFromBytes(b []byte) (*PrivateKey, error) {
 	}
 
 	k := new(PrivateKey)
-	k.DSAPrivateKey = make([]byte, ed25519.PrivateKeySize)
-	k.PublicKey.DSAPublicKey = make([]byte, ed25519.PublicKeySize)
-	copy(k.DSAPrivateKey, b)
-	copy(k.PublicKey.DSAPublicKey, k.DSAPrivateKey[32:])
-	if err := k.toCurve25519(); err != nil {
+	runtime.SetFinalizer(k, finalizePrivateKey) // Not always run on exit.
+	copy(k.PrivateKey[:], b)
+	if err := k.genPublic(); err != nil {
 		k.Reset()
 		return nil, err
 	}
@@ -178,30 +159,27 @@ func finalizePrivateKey(k *PrivateKey) {
 	k.Reset()
 }
 
-// PublicKey is a EdDSA public key and it's X25519 counterpart.
+// PublicKey is a X25519 public key.
 type PublicKey struct {
-	DSAPublicKey ed25519.PublicKey
-	KEXPublicKey [PublicKeySize]byte
+	PublicKey [PublicKeySize]byte
 }
 
-// Verify returns true iff sig is a valid signature of message.
-func (k *PublicKey) Verify(message []byte, sig []byte) bool {
-	return ed25519.Verify(k.DSAPublicKey, message, sig)
-}
-
-func (k *PublicKey) toCurve25519() error {
-	x25519.PublicKeyToCurve25519(&k.KEXPublicKey, k.DSAPublicKey)
-	if !crypto.MemIsZero(k.KEXPublicKey[:]) {
-		return nil
-	}
-	return ErrInvalidKey
+// ScalarMult derives a shared secret given a private key, suitable
+// for use as an input to a key derivation function, and returns true on
+// success.  The return value MUST be validated to thwart invalid point
+// attacks.
+func (k *PublicKey) ScalarMult(secret *[SharedSecretSize]byte, privateKey *[PrivateKeySize]byte) bool {
+	ok := !crypto.MemIsZero(k.PublicKey[:])
+	curve25519.ScalarMult(secret, privateKey, &k.PublicKey)
+	ok = ok && !crypto.MemIsZero(secret[:])
+	return ok
 }
 
 // ToPEM serializes a public key to PEM format.
 func (k *PublicKey) ToPEM() []byte {
 	block := &pem.Block{
 		Type:  publicKeyPEMType,
-		Bytes: k.DSAPublicKey,
+		Bytes: k.PublicKey[:],
 	}
 	return pem.EncodeToMemory(block)
 }
@@ -221,7 +199,12 @@ func PublicKeyFromPEM(b []byte) (*PublicKey, error) {
 
 // ToString serializes a public key to a string.
 func (k *PublicKey) ToString() string {
-	return base64.RawStdEncoding.EncodeToString(k.DSAPublicKey)
+	return base64.RawStdEncoding.EncodeToString(k.PublicKey[:])
+}
+
+// ToBytes returns the raw internal byte array as a slice.
+func (k *PublicKey) ToBytes() []byte {
+	return k.PublicKey[:]
 }
 
 // PublicKeyFromString deserializes a string encoded public key.
@@ -240,10 +223,9 @@ func PublicKeyFromBytes(b []byte) (*PublicKey, error) {
 	}
 
 	k := new(PublicKey)
-	k.DSAPublicKey = make([]byte, ed25519.PublicKeySize)
-	copy(k.DSAPublicKey, b)
-	if err := k.toCurve25519(); err != nil {
-		return nil, err
+	copy(k.PublicKey[:], b)
+	if crypto.MemIsZero(k.PublicKey[:]) {
+		return nil, ErrInvalidKey
 	}
 
 	return k, nil
