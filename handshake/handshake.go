@@ -128,18 +128,22 @@ func (k *SessionKeys) Reset() {
 	crypto.Memwipe(k.TranscriptDigest)
 }
 
-func newSessionKeys(transcriptDigest, oSecret, xSecret, nhSecret []byte) *SessionKeys {
-	k := new(SessionKeys)
-
+func newSessionKeys(secrets []([]byte), transcriptDigest []byte) *SessionKeys {
+	// Feed the tweak, the shared secret values, and the transcriptDigest into
+	// the KDF (SHAKE-256).  For the composite ECDH/RingLWE methods this works
+	// out to be:
+	//
 	// Alice: SHAKE256(tweak | EXP(a,B) | EXP(x,Y) | NewHopeA(sk, BobPK) | transcriptDigest)
 	// Bob: SHAKE256(tweak | EXP(b,A) EXP(y,X) | NewHopeB(AlicePK) | transcriptDigest)
+
 	kdf := sha3.NewShake256()
 	kdf.Write(handshakeKdfTweak)
-	kdf.Write(oSecret)
-	kdf.Write(xSecret)
-	kdf.Write(nhSecret)
+	for _, s := range secrets {
+		kdf.Write(s)
+	}
 	kdf.Write(transcriptDigest)
 
+	k := new(SessionKeys)
 	k.KDF = kdf
 	k.TranscriptDigest = transcriptDigest
 
