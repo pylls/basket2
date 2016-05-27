@@ -24,7 +24,7 @@ import (
 	"io"
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
-	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
+	"git.schwanenlied.me/yawning/basket2.git/crypto/ecdh"
 	"git.schwanenlied.me/yawning/newhope.git"
 
 	"golang.org/x/crypto/sha3"
@@ -50,6 +50,9 @@ const (
 
 	// MaxHandshakeSize is the maximum total handshake length.
 	MaxHandshakeSize = 8192
+
+	// IdentityCurve is the curve used for server identities.
+	IdentityCurve = ecdh.X25519
 
 	minReqSize = 1 + 1
 )
@@ -204,7 +207,7 @@ func (c *ClientHandshake) Reset() {
 // Note: Due to the rejection sampling in Elligator 2 keypair generation, this
 // should be done offline.  The timing variation only leaks information about
 // the obfuscation method, and does not compromise secrecy or integrity.
-func NewClientHandshake(rand io.Reader, kexMethod KEXMethod, serverPublicKey *identity.PublicKey) (*ClientHandshake, error) {
+func NewClientHandshake(rand io.Reader, kexMethod KEXMethod, serverPublicKey ecdh.PublicKey) (*ClientHandshake, error) {
 	var err error
 	c := new(ClientHandshake)
 	c.rand = rand
@@ -318,7 +321,7 @@ func (s *ServerHandshake) isAllowedKEXMethod(kexMethod KEXMethod) bool {
 
 // NewServerHandshake creates a new ServerHandshake instance suitable for a
 // single handshake to the provided peer identified by a private key.
-func NewServerHandshake(rand io.Reader, kexMethods []KEXMethod, replay ReplayFilter, serverPrivateKey *identity.PrivateKey) (*ServerHandshake, error) {
+func NewServerHandshake(rand io.Reader, kexMethods []KEXMethod, replay ReplayFilter, serverPrivateKey ecdh.PrivateKey) (*ServerHandshake, error) {
 	var err error
 	s := new(ServerHandshake)
 	s.rand = rand

@@ -17,6 +17,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"net"
@@ -28,7 +29,7 @@ import (
 	"git.schwanenlied.me/yawning/basket2.git"
 	"git.schwanenlied.me/yawning/basket2.git/basket2proxy/internal/log"
 	"git.schwanenlied.me/yawning/basket2.git/basket2proxy/internal/proxyextras"
-	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
+	"git.schwanenlied.me/yawning/basket2.git/crypto/ecdh"
 	"git.schwanenlied.me/yawning/basket2.git/handshake"
 
 	"git.torproject.org/pluggable-transports/goptlib.git"
@@ -81,7 +82,11 @@ func (s *clientState) parseBridgeArgs(args *pt.Args) (*basket2.ClientConfig, err
 	}
 
 	// Parse out the bridge's identity key.
-	if cfg.ServerPublicKey, err = identity.PublicKeyFromString(splitArgs[2]); err != nil {
+	b, err := base64.RawStdEncoding.DecodeString(splitArgs[2])
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize public key: %v", err)
+	}
+	if cfg.ServerPublicKey, err = ecdh.PublicKeyFromBytes(handshake.IdentityCurve, b); err != nil {
 		return nil, fmt.Errorf("failed to deserialize public key: %v", err)
 	}
 

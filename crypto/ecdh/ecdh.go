@@ -54,6 +54,9 @@ type Curve byte
 
 // PublicKey is an ECDH public key.
 type PublicKey interface {
+	// Curve returns the Curve that this public key is for.
+	Curve() Curve
+
 	// Size returns the size of the encoded public key in bytes.
 	Size() int
 
@@ -99,6 +102,9 @@ type PrivateKey interface {
 	// attacks.
 	ScalarMult(PublicKey) ([]byte, bool)
 
+	// Curve returns the Curve that this private key is for.
+	Curve() Curve
+
 	// Size returns the size of the encoded private key in bytes.
 	Size() int
 
@@ -126,7 +132,7 @@ func PrivateKeyFromBytes(curve Curve, b []byte) (PrivateKey, error) {
 // New generates a new PrivateKey in the provided curve using the random source
 // rand.  If uniform is true, an Elligator2 representative will also be
 // generated if supported.
-func New(curve Curve, rand io.Reader, uniform bool) (PrivateKey, error) {
+func New(rand io.Reader, curve Curve, uniform bool) (PrivateKey, error) {
 	switch curve {
 	case X25519:
 		return newX25519(rand, uniform)

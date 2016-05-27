@@ -19,7 +19,7 @@ package basket2
 import (
 	"net"
 
-	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
+	"git.schwanenlied.me/yawning/basket2.git/crypto/ecdh"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
 	"git.schwanenlied.me/yawning/basket2.git/framing"
 	"git.schwanenlied.me/yawning/basket2.git/handshake"
@@ -30,7 +30,7 @@ import (
 type ClientConfig struct {
 	KEXMethod       handshake.KEXMethod
 	PaddingMethods  []PaddingMethod
-	ServerPublicKey *identity.PublicKey
+	ServerPublicKey ecdh.PublicKey
 
 	// AuthFn is the function called at handshake time to authenticate with
 	// the remote peer.  It is expected to return the authentication request
@@ -185,6 +185,9 @@ func NewClientConn(config *ClientConfig) (*ClientConn, error) {
 	}
 	if config.ServerPublicKey == nil {
 		panic("basket2: no server public key")
+	}
+	if config.ServerPublicKey.Curve() != handshake.IdentityCurve {
+		panic("basket2: invalid server public key curve")
 	}
 
 	c := new(ClientConn)

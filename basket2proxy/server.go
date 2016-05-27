@@ -17,7 +17,10 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -29,7 +32,7 @@ import (
 	"git.schwanenlied.me/yawning/basket2.git"
 	"git.schwanenlied.me/yawning/basket2.git/basket2proxy/internal/log"
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
-	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
+	"git.schwanenlied.me/yawning/basket2.git/crypto/ecdh"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
 	"git.schwanenlied.me/yawning/basket2.git/framing/tentp"
 	"git.schwanenlied.me/yawning/basket2.git/handshake"
@@ -38,17 +41,22 @@ import (
 )
 
 const (
-	bridgeFile          = "basket2_bridgeline.txt"
-	bridgeParamsFile    = "basket2_params.json"
-	privateIdentityFile = "basket2_x25519.priv"
-	fileMode            = 0600
+	bridgeFile             = "basket2_bridgeline.txt"
+	bridgeParamsFile       = "basket2_params.json"
+	privateIdentityFile    = "basket2_x25519.priv"
+	privateIdentityPEMType = "X25519 PRIVATE KEY"
+	fileMode               = 0600
 
 	serverHandshakeTimeout = time.Duration(30) * time.Second
 	maxCloseDelayBytes     = handshake.MaxHandshakeSize
 	maxCloseDelay          = 60
 )
 
-var useLargeReplayFilter bool
+var (
+	errInvalidKey = errors.New("identity: deserialized key is invalid")
+
+	useLargeReplayFilter bool
+)
 
 type serverState struct {
 	config *basket2.ServerConfig
@@ -62,7 +70,7 @@ type serverState struct {
 }
 
 func (s *serverState) getPtArgs() (*pt.Args, error) {
-	pkStr := s.config.ServerPrivateKey.PublicKey.ToString()
+	pkStr := base64.RawStdEncoding.EncodeToString(s.config.ServerPrivateKey.PublicKey().ToBytes())
 
 	var kexStr string
 	for _, m := range s.config.KEXMethods {
@@ -284,7 +292,7 @@ func (s *serverState) closeAfterDelay(conn net.Conn, establishedAt time.Time) {
 	}
 }
 
-func loadServerPrivateKey() (sk *identity.PrivateKey, err error) {
+func loadServerPrivateKey() (sk ecdh.PrivateKey, err error) {
 	defer func() {
 		if sk != nil {
 			if err != nil {
@@ -310,13 +318,17 @@ func loadServerPrivateKey() (sk *identity.PrivateKey, err error) {
 		}
 
 		// Failed to load a private key, generate it.
-		sk, err = identity.NewPrivateKey(rand.Reader)
+		sk, err = ecdh.New(rand.Reader, handshake.IdentityCurve, false)
 		if err != nil {
 			return
 		}
 
 		// Serialize the private key.
-		blob = sk.ToPEM()
+		block := &pem.Block{
+			Type:  privateIdentityPEMType,
+			Bytes: sk.ToBytes(),
+		}
+		blob = pem.EncodeToMemory(block)
 		defer crypto.Memwipe(blob)
 		err = ioutil.WriteFile(privKeyFile, blob, os.ModeExclusive|fileMode)
 		return
@@ -324,7 +336,15 @@ func loadServerPrivateKey() (sk *identity.PrivateKey, err error) {
 	defer crypto.Memwipe(blob)
 
 	// Deserialize the private key.
-	return identity.PrivateKeyFromPEM(blob)
+	block, _ := pem.Decode(blob)
+	if block == nil {
+		return nil, errInvalidKey
+	}
+	defer crypto.Memwipe(block.Bytes)
+	if block.Type != privateIdentityPEMType {
+		return nil, errInvalidKey
+	}
+	return ecdh.PrivateKeyFromBytes(handshake.IdentityCurve, block.Bytes)
 }
 
 func initServerListener(si *pt.ServerInfo, bindaddr *pt.Bindaddr) (net.Listener, error) {

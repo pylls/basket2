@@ -19,7 +19,7 @@ package basket2
 import (
 	"net"
 
-	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
+	"git.schwanenlied.me/yawning/basket2.git/crypto/ecdh"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
 	"git.schwanenlied.me/yawning/basket2.git/framing"
 	"git.schwanenlied.me/yawning/basket2.git/handshake"
@@ -28,7 +28,7 @@ import (
 // ServerConfig is the server configuration parameters to use when
 // constructing a ServerConn.
 type ServerConfig struct {
-	ServerPrivateKey *identity.PrivateKey
+	ServerPrivateKey ecdh.PrivateKey
 
 	KEXMethods     []handshake.KEXMethod
 	PaddingMethods []PaddingMethod
@@ -195,6 +195,9 @@ func NewServerConn(config *ServerConfig) (*ServerConn, error) {
 	}
 	if config.ServerPrivateKey == nil {
 		panic("basket2: no server private key")
+	}
+	if config.ServerPrivateKey.Curve() != handshake.IdentityCurve {
+		panic("basket2: invalid server private key curve")
 	}
 	if config.AuthPolicy == AuthMust && config.AuthFn == nil {
 		panic("basket2: auth required but no AuthFn")

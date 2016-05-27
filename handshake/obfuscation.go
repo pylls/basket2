@@ -25,8 +25,7 @@ import (
 	"time"
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
-	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
-	"git.schwanenlied.me/yawning/basket2.git/ext/x25519/elligator2"
+	"git.schwanenlied.me/yawning/basket2.git/crypto/ecdh"
 	"git.schwanenlied.me/yawning/basket2.git/framing"
 	"git.schwanenlied.me/yawning/basket2.git/framing/tentp"
 
@@ -42,11 +41,6 @@ var (
 	obfsMACTweak   = []byte("basket2-obfs-v1-mac-tweak")
 	obfsKdfTweak   = []byte("basket2-obfs-v1-kdf-tweak")
 	obfsTransTweak = []byte("basket2-obfs-v1-transcript-tweak")
-
-	// ErrInvalidPoint is the error returned when the handshake/obfuscation
-	// crypto fails due to the X25519 point not being on the curve or it's
-	// twist.
-	ErrInvalidPoint = errors.New("handshake: invalid point")
 
 	// ErrInvalidCmd is the error returned on a invalid obfuscated handshake
 	// payload command.
@@ -66,11 +60,11 @@ var (
 
 // clientObfsCtx is the client handshake obfuscator state.
 type clientObfsCtx struct {
-	serverPublicKey *identity.PublicKey
+	serverPublicKey ecdh.PublicKey
 
-	privKey      [32]byte
-	repr         [32]byte
-	sharedSecret [32]byte
+	privKey      ecdh.PrivateKey
+	repr         []byte
+	sharedSecret []byte
 
 	transcriptDigest [32]byte
 }
@@ -96,11 +90,11 @@ func (o *clientObfsCtx) handshake(rw io.ReadWriter, msg []byte, padLen int) ([]b
 	// Note: The cipherText is structured such that the decoder can determine
 	// the length.
 	reqBlob := make([]byte, 0, obfsClientOverhead+len(msg)+padLen)
-	reqBlob = append(reqBlob, o.repr[:]...)
+	reqBlob = append(reqBlob, o.repr...)
 	macHash := sha3.New256()
 	macHash.Write(obfsMACTweak[:])
 	macHash.Write(o.serverPublicKey.ToBytes())
-	macHash.Write(o.repr[:])
+	macHash.Write(o.repr)
 	macHash.Write(epochHour[:])
 	reqBlob = macHash.Sum(reqBlob)
 
@@ -190,8 +184,11 @@ func (o *clientObfsCtx) handshake(rw io.ReadWriter, msg []byte, padLen int) ([]b
 
 // reset sanitizes private values from the client handshake obfuscator state.
 func (o *clientObfsCtx) reset() {
-	crypto.Memwipe(o.privKey[:])
-	crypto.Memwipe(o.sharedSecret[:])
+	if o.privKey != nil {
+		o.privKey.Reset()
+		o.privKey = nil
+	}
+	crypto.Memwipe(o.sharedSecret)
 }
 
 // newClientObfs creates a new client side handshake obfuscator instance, for
@@ -200,37 +197,36 @@ func (o *clientObfsCtx) reset() {
 // Note: Due to the rejection sampling in Elligator 2 keypair generation, this
 // should be done offline.  The timing variation only leaks information about
 // the obfuscation method, and does not compromise secrecy or integrity.
-func newClientObfs(rand io.Reader, serverPublicKey *identity.PublicKey) (*clientObfsCtx, error) {
+func newClientObfs(rand io.Reader, serverPublicKey ecdh.PublicKey) (*clientObfsCtx, error) {
 	o := new(clientObfsCtx)
 	o.serverPublicKey = serverPublicKey
 
 	// Generate a Curve25519 keypair, along with an Elligator 2 uniform
 	// random representative of the public key.
-	var publicKey [32]byte // Don't need our public key past validation.
-	if err := elligator2.GenerateKey(rand, &publicKey, &o.repr, &o.privKey); err != nil {
+	var err error
+	if o.privKey, err = ecdh.New(rand, IdentityCurve, true); err != nil {
 		return nil, err
 	}
-	if crypto.MemIsZero(publicKey[:]) {
-		return nil, ErrInvalidPoint
-	}
+	o.repr = o.privKey.PublicKey().ToUniformBytes()
 
 	// Calculate a shared secret with our ephemeral key, and the server's
 	// long term public key.
-	ok := serverPublicKey.ScalarMult(&o.sharedSecret, &o.privKey)
+	ok := false
+	o.sharedSecret, ok = o.privKey.ScalarMult(serverPublicKey)
 	if !ok {
-		return nil, ErrInvalidPoint
+		return nil, ecdh.ErrInvalidPoint
 	}
 
 	return o, nil
 }
 
 type serverObfsCtx struct {
-	clientPublicKey [32]byte
+	clientPublicKey ecdh.PublicKey
 
-	keypair      *identity.PrivateKey
+	keypair      ecdh.PrivateKey
 	keyHash      sha3.ShakeHash
 	tHash        hash.Hash
-	sharedSecret [32]byte
+	sharedSecret []byte
 
 	transcriptDigest [32]byte
 
@@ -243,7 +239,7 @@ func (o *serverObfsCtx) reset() {
 	if o.keyHash != nil {
 		o.keyHash.Reset()
 	}
-	crypto.Memwipe(o.sharedSecret[:])
+	crypto.Memwipe(o.sharedSecret)
 }
 
 func (o *serverObfsCtx) recvHandshakeReq(r io.Reader) ([]byte, error) {
@@ -268,7 +264,7 @@ func (o *serverObfsCtx) recvHandshakeReq(r io.Reader) ([]byte, error) {
 
 		macHash := sha3.New256()
 		macHash.Write(obfsMACTweak[:])
-		macHash.Write(o.keypair.PublicKey.ToBytes())
+		macHash.Write(o.keypair.PublicKey().ToBytes())
 		macHash.Write(repr[:])
 		macHash.Write(epochHour[:])
 
@@ -297,9 +293,14 @@ func (o *serverObfsCtx) recvHandshakeReq(r io.Reader) ([]byte, error) {
 
 	// Calculate the shared secret, with the client's representative and our
 	// long term private key.
-	elligator2.RepresentativeToPublicKey(&o.clientPublicKey, &repr)
-	if !o.keypair.ScalarMult(&o.sharedSecret, &o.clientPublicKey) {
-		return nil, ErrInvalidPoint
+	var err error
+	if o.clientPublicKey, err = ecdh.PublicKeyFromUniformBytes(IdentityCurve, repr[:]); err != nil {
+		return nil, err
+	}
+	ok := false
+	o.sharedSecret, ok = o.keypair.ScalarMult(o.clientPublicKey)
+	if !ok {
+		return nil, ecdh.ErrInvalidPoint
 	}
 
 	// Derive the handshake symmetric keys, and initialize the frame decoder
@@ -308,8 +309,8 @@ func (o *serverObfsCtx) recvHandshakeReq(r io.Reader) ([]byte, error) {
 	// sent.
 	o.keyHash = sha3.NewShake256()
 	o.keyHash.Write(obfsKdfTweak)
-	o.keyHash.Write(o.keypair.PublicKey.ToBytes())
-	o.keyHash.Write(o.sharedSecret[:])
+	o.keyHash.Write(o.keypair.PublicKey().ToBytes())
+	o.keyHash.Write(o.sharedSecret)
 	o.keyHash.Write(mac[:]) // Include the MAC in the KDF input.
 	dec, err := tentp.NewDecoderFromKDF(o.keyHash)
 	if err != nil {
@@ -375,7 +376,7 @@ func (o *serverObfsCtx) sendHandshakeResp(w io.Writer, msg []byte, padLen int) e
 	return nil
 }
 
-func newServerObfs(replay ReplayFilter, staticObfsKeypair *identity.PrivateKey) (*serverObfsCtx, error) {
+func newServerObfs(replay ReplayFilter, staticObfsKeypair ecdh.PrivateKey) (*serverObfsCtx, error) {
 	o := new(serverObfsCtx)
 	o.keypair = staticObfsKeypair
 	o.replay = replay

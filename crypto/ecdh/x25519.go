@@ -33,6 +33,10 @@ type x25519PublicKey struct {
 	uniformBytes *[X25519Size]byte
 }
 
+func (k *x25519PublicKey) Curve() Curve {
+	return X25519
+}
+
 func (k *x25519PublicKey) Size() int {
 	return X25519Size
 }
@@ -93,6 +97,10 @@ func (k *x25519PrivateKey) ScalarMult(publicKey PublicKey) ([]byte, bool) {
 	curve25519.ScalarMult(&sharedSecret, &k.privBytes, &xpk.pubBytes)
 	ok = ok && !crypto.MemIsZero(sharedSecret[:])
 	return sharedSecret[:], ok
+}
+
+func (k *x25519PrivateKey) Curve() Curve {
+	return X25519
 }
 
 func (k *x25519PrivateKey) Size() int {

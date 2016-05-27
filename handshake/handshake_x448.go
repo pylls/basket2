@@ -20,25 +20,21 @@ import (
 	"io"
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
+	"git.schwanenlied.me/yawning/basket2.git/crypto/ecdh"
 	"git.schwanenlied.me/yawning/newhope.git"
-	"git.schwanenlied.me/yawning/x448.git"
 )
 
 const (
 	// X448NewHope is the X448/NewHope based handshake method.
 	X448NewHope KEXMethod = 1
 
-	x448ReqSize  = 1 + 1 + 56 + newhope.SendASize
-	x448RespSize = 1 + 1 + 56 + newhope.SendBSize
+	x448ReqSize  = 1 + 1 + ecdh.X448Size + newhope.SendASize
+	x448RespSize = 1 + 1 + ecdh.X448Size + newhope.SendBSize
 
 	x448XOffset  = 2
-	x448NHOffset = 2 + 56
+	x448NHOffset = 2 + ecdh.X448Size
 
 	x448PadNormSize = newhope.SendBSize - ((obfsClientOverhead - obfsServerOverhead) + newhope.SendASize)
-)
-
-var (
-	x448RandTweak = []byte("basket2-x448-tweak")
 )
 
 func (c *ClientHandshake) handshakeX448(rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, []byte, error) {
@@ -47,17 +43,17 @@ func (c *ClientHandshake) handshakeX448(rw io.ReadWriter, extData []byte, padLen
 	}
 
 	// Generate the ephemeral X448 keypair.
-	var xPublicKey, xPrivateKey [56]byte
-	defer crypto.Memwipe(xPrivateKey[:])
-	if err := newX448KeyPair(c.rand, &xPublicKey, &xPrivateKey); err != nil {
+	xPrivateKey, err := ecdh.New(c.rand, ecdh.X448, false)
+	if err != nil {
 		return nil, nil, err
 	}
+	defer xPrivateKey.Reset()
 
 	// Craft the handshake request blob.
 	reqBlob := make([]byte, 0, x448ReqSize+len(extData))
 	reqBlob = append(reqBlob, HandshakeVersion)
 	reqBlob = append(reqBlob, byte(c.kexMethod))
-	reqBlob = append(reqBlob, xPublicKey[:]...)
+	reqBlob = append(reqBlob, xPrivateKey.PublicKey().ToBytes()...)
 	reqBlob = append(reqBlob, c.nhPublicKey.Send[:]...)
 	reqBlob = append(reqBlob, extData...)
 
@@ -83,12 +79,15 @@ func (c *ClientHandshake) handshakeX448(rw io.ReadWriter, extData []byte, padLen
 	}
 
 	// X448 key exchange with the server's ephemeral key.
-	var xSharedSecret [56]byte
-	defer crypto.Memwipe(xSharedSecret[:])
-	copy(xPublicKey[:], respBlob[x448XOffset:])
-	if x448.ScalarMult(&xSharedSecret, &xPrivateKey, &xPublicKey) != 0 {
-		return nil, nil, ErrInvalidPoint
+	xPublicKey, err := ecdh.PublicKeyFromBytes(ecdh.X448, respBlob[x448XOffset:x448XOffset+ecdh.X448Size])
+	if err != nil {
+		return nil, nil, err
 	}
+	xSharedSecret, ok := xPrivateKey.ScalarMult(xPublicKey)
+	if !ok {
+		return nil, nil, ecdh.ErrInvalidPoint
+	}
+	defer crypto.Memwipe(xSharedSecret)
 
 	// NewHope key exchange with the server's public key.
 	var nhPublicKey newhope.PublicKeyBob
@@ -101,8 +100,8 @@ func (c *ClientHandshake) handshakeX448(rw io.ReadWriter, extData []byte, padLen
 
 	// Derive the session keys.
 	secrets := make([]([]byte), 0, 3)
-	secrets = append(secrets, c.obfs.sharedSecret[:])
-	secrets = append(secrets, xSharedSecret[:])
+	secrets = append(secrets, c.obfs.sharedSecret)
+	secrets = append(secrets, xSharedSecret)
 	secrets = append(secrets, nhSharedSecret)
 	k := newSessionKeys(secrets, c.obfs.transcriptDigest[:])
 
@@ -133,19 +132,23 @@ func (s *ServerHandshake) sendRespX448(w io.Writer, extData []byte, padLen int) 
 	respBlob = append(respBlob, byte(s.kexMethod))
 
 	// Generate a new X448 keypair.
-	var xPublicKey, xPrivateKey, xSharedSecret [56]byte
-	defer crypto.Memwipe(xPrivateKey[:])
-	defer crypto.Memwipe(xSharedSecret[:])
-	if err := newX448KeyPair(s.rand, &xPublicKey, &xPrivateKey); err != nil {
+	xPrivateKey, err := ecdh.New(s.rand, ecdh.X448, false)
+	if err != nil {
 		return nil, err
 	}
-	respBlob = append(respBlob, xPublicKey[:]...)
-	copy(xPublicKey[:], s.reqBlob[x448XOffset:])
+	defer xPrivateKey.Reset()
+	respBlob = append(respBlob, xPrivateKey.PublicKey().ToBytes()...)
 
 	// X448 key exchange with both ephemeral keys.
-	if x448.ScalarMult(&xSharedSecret, &xPrivateKey, &xPublicKey) != 0 {
-		return nil, ErrInvalidPoint
+	xPublicKey, err := ecdh.PublicKeyFromBytes(ecdh.X448, s.reqBlob[x448XOffset:x448XOffset+ecdh.X448Size])
+	if err != nil {
+		return nil, err
 	}
+	xSharedSecret, ok := xPrivateKey.ScalarMult(xPublicKey)
+	if !ok {
+		return nil, ecdh.ErrInvalidPoint
+	}
+	defer crypto.Memwipe(xSharedSecret)
 
 	// NewHope key exchange with the client's public key.
 	var nhPublicKeyAlice newhope.PublicKeyAlice
@@ -170,27 +173,10 @@ func (s *ServerHandshake) sendRespX448(w io.Writer, extData []byte, padLen int) 
 
 	// Derive the session keys.
 	secrets := make([]([]byte), 0, 3)
-	secrets = append(secrets, s.obfs.sharedSecret[:])
-	secrets = append(secrets, xSharedSecret[:])
+	secrets = append(secrets, s.obfs.sharedSecret)
+	secrets = append(secrets, xSharedSecret)
 	secrets = append(secrets, nhSharedSecret)
 	k := newSessionKeys(secrets, s.obfs.transcriptDigest[:])
 
 	return k, nil
-}
-
-func newX448KeyPair(rand io.Reader, publicKey, privateKey *[56]byte) error {
-	rh, err := crypto.NewTweakedShake256(rand, x448RandTweak)
-	if err != nil {
-		return err
-	}
-	defer rh.Reset()
-
-	if _, err := io.ReadFull(rh, privateKey[:]); err != nil {
-		return err
-	}
-	if x448.ScalarBaseMult(publicKey, privateKey) != 0 {
-		return ErrInvalidPoint
-	}
-
-	return nil
 }

@@ -20,9 +20,8 @@ import (
 	"io"
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
+	"git.schwanenlied.me/yawning/basket2.git/crypto/ecdh"
 	"git.schwanenlied.me/yawning/newhope.git"
-
-	"golang.org/x/crypto/curve25519"
 )
 
 const (
@@ -30,19 +29,15 @@ const (
 	X25519NewHope KEXMethod = 0
 
 	x25519ReqSize  = 1 + 1 + newhope.SendASize
-	x25519RespSize = 1 + 1 + 32 + newhope.SendBSize
+	x25519RespSize = 1 + 1 + ecdh.X25519Size + newhope.SendBSize
 
 	x25519RespXOffset  = 2
-	x25519RespNHOffset = 2 + 32
+	x25519RespNHOffset = 2 + ecdh.X25519Size
 	x25519ReqNHOffset  = 2
 
 	// Pad to X448 handshake size...
 	x25519ReqPadNormSize  = (x448ReqSize - x25519ReqSize) + x448PadNormSize
 	x25519RespPadNormSize = x448RespSize - x25519RespSize
-)
-
-var (
-	x25519RandTewak = []byte("basket2-x25519-tweak")
 )
 
 func (c *ClientHandshake) handshakeX25519(rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, []byte, error) {
@@ -79,13 +74,15 @@ func (c *ClientHandshake) handshakeX25519(rw io.ReadWriter, extData []byte, padL
 	}
 
 	// X25519 key exchange with the server's ephemeral key.
-	var xPublicKey, xSharedSecret [32]byte
-	defer crypto.Memwipe(xSharedSecret[:])
-	copy(xPublicKey[:], respBlob[x25519RespXOffset:])
-	curve25519.ScalarMult(&xSharedSecret, &c.obfs.privKey, &xPublicKey)
-	if crypto.MemIsZero(xSharedSecret[:]) {
-		return nil, nil, ErrInvalidPoint
+	xPublicKey, err := ecdh.PublicKeyFromBytes(ecdh.X25519, respBlob[x25519RespXOffset:x25519RespXOffset+ecdh.X25519Size])
+	if err != nil {
+		return nil, nil, err
 	}
+	xSharedSecret, ok := c.obfs.privKey.ScalarMult(xPublicKey)
+	if !ok {
+		return nil, nil, ecdh.ErrInvalidPoint
+	}
+	defer crypto.Memwipe(xSharedSecret)
 
 	// NewHope key exchange with the server's public key.
 	var nhPublicKey newhope.PublicKeyBob
@@ -98,8 +95,8 @@ func (c *ClientHandshake) handshakeX25519(rw io.ReadWriter, extData []byte, padL
 
 	// Derive the session keys.
 	secrets := make([]([]byte), 0, 3)
-	secrets = append(secrets, c.obfs.sharedSecret[:])
-	secrets = append(secrets, xSharedSecret[:])
+	secrets = append(secrets, c.obfs.sharedSecret)
+	secrets = append(secrets, xSharedSecret)
 	secrets = append(secrets, nhSharedSecret)
 	k := newSessionKeys(secrets, c.obfs.transcriptDigest[:])
 
@@ -130,19 +127,19 @@ func (s *ServerHandshake) sendRespX25519(w io.Writer, extData []byte, padLen int
 	respBlob = append(respBlob, byte(s.kexMethod))
 
 	// Generate a new X25519 keypair.
-	var xPublicKey, xPrivateKey, xSharedSecret [32]byte
-	defer crypto.Memwipe(xPrivateKey[:])
-	defer crypto.Memwipe(xSharedSecret[:])
-	if err := newX25519KeyPair(s.rand, &xPublicKey, &xPrivateKey); err != nil {
+	xPrivateKey, err := ecdh.New(s.rand, ecdh.X25519, false)
+	if err != nil {
 		return nil, err
 	}
-	respBlob = append(respBlob, xPublicKey[:]...)
+	defer xPrivateKey.Reset()
+	respBlob = append(respBlob, xPrivateKey.PublicKey().ToBytes()...)
 
 	// X25519 key exchange with both ephemeral keys.
-	curve25519.ScalarMult(&xSharedSecret, &xPrivateKey, &s.obfs.clientPublicKey)
-	if crypto.MemIsZero(xSharedSecret[:]) {
-		return nil, ErrInvalidPoint
+	xSharedSecret, ok := xPrivateKey.ScalarMult(s.obfs.clientPublicKey)
+	if !ok {
+		return nil, ecdh.ErrInvalidPoint
 	}
+	defer crypto.Memwipe(xSharedSecret)
 
 	// NewHope key exchange with the client's public key.
 	var nhPublicKeyAlice newhope.PublicKeyAlice
@@ -171,28 +168,10 @@ func (s *ServerHandshake) sendRespX25519(w io.Writer, extData []byte, padLen int
 
 	// Derive the session keys.
 	secrets := make([]([]byte), 0, 3)
-	secrets = append(secrets, s.obfs.sharedSecret[:])
-	secrets = append(secrets, xSharedSecret[:])
+	secrets = append(secrets, s.obfs.sharedSecret)
+	secrets = append(secrets, xSharedSecret)
 	secrets = append(secrets, nhSharedSecret)
 	k := newSessionKeys(secrets, s.obfs.transcriptDigest[:])
 
 	return k, nil
-}
-
-func newX25519KeyPair(rand io.Reader, publicKey, privateKey *[32]byte) error {
-	rh, err := crypto.NewTweakedShake256(rand, x25519RandTewak)
-	if err != nil {
-		return err
-	}
-	defer rh.Reset()
-
-	if _, err := io.ReadFull(rh, privateKey[:]); err != nil {
-		return err
-	}
-
-	curve25519.ScalarBaseMult(publicKey, privateKey)
-	if !crypto.MemIsZero(publicKey[:]) {
-		return nil
-	}
-	return ErrInvalidPoint
 }

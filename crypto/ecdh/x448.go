@@ -31,6 +31,10 @@ type x448PublicKey struct {
 	pubBytes [X448Size]byte
 }
 
+func (k *x448PublicKey) Curve() Curve {
+	return X448
+}
+
 func (k *x448PublicKey) Size() int {
 	return X448Size
 }
@@ -72,6 +76,10 @@ func (k *x448PrivateKey) ScalarMult(publicKey PublicKey) ([]byte, bool) {
 	var sharedSecret [X448Size]byte
 	ok := x448.ScalarMult(&sharedSecret, &k.privBytes, &xpk.pubBytes)
 	return sharedSecret[:], ok == 0
+}
+
+func (k *x448PrivateKey) Curve() Curve {
+	return X448
 }
 
 func (k *x448PrivateKey) Size() int {

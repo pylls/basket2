@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"git.schwanenlied.me/yawning/basket2.git/crypto/identity"
+	"git.schwanenlied.me/yawning/basket2.git/crypto/ecdh"
 )
 
 var (
@@ -42,7 +42,7 @@ type testState struct {
 	sync.WaitGroup
 	kexMethod KEXMethod
 
-	bobKeypair *identity.PrivateKey
+	bobKeypair ecdh.PrivateKey
 	replay     ReplayFilter
 
 	aliceCh, bobCh     chan error
@@ -63,7 +63,7 @@ func (s *testState) aliceRoutine() {
 
 	s.alicePipe.SetDeadline(time.Now().Add(5 * time.Second))
 
-	hs, err := NewClientHandshake(rand.Reader, s.kexMethod, &s.bobKeypair.PublicKey)
+	hs, err := NewClientHandshake(rand.Reader, s.kexMethod, s.bobKeypair.PublicKey())
 	if err != nil {
 		s.aliceCh <- err
 		return
@@ -199,7 +199,7 @@ func newTestState() (*testState, error) {
 	s.aliceCh, s.bobCh = make(chan error), make(chan error)
 	s.kdfCh = make(chan *SessionKeys, 2)
 
-	s.bobKeypair, err = identity.NewPrivateKey(rand.Reader)
+	s.bobKeypair, err = ecdh.New(rand.Reader, IdentityCurve, true)
 	if err != nil {
 		return nil, err
 	}
