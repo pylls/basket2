@@ -61,18 +61,3 @@ Notes:
    a decent amount of work and extensions, but certain properties and behavior
    I need aren't formally specified yet.  This is something I will strongly
    consider if/when I design basket3.
-
-TODO:
-
- * Write a formal specification.
-
- * Write an AVX2 optimized Poly1305 implementation.
-
- * Someone that's not me should write assembly optimized ChaCha20 for ARM and
-   i386.  I may do both if I feel bored enough, but no promises.
-
- * Write optimized assembler versions of things for gccgo (or C if that's
-   easier).  Low priority.
-
- * Define more padding primitives.
-
