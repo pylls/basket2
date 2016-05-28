@@ -22,9 +22,8 @@ Features:
 Dependencies:
 
  * Go 1.6.x or later - (May work with older versions, don't care if they don't)
- * golang.org/x/crypto - SHA3, Curve25519, Ed25519, Poly1305
+ * golang.org/x/crypto - SHA3, Curve25519, Poly1305
  * github.com/dchest/siphash - SipHash-2-4
- * git.schwanenlied.me/yawning/a2filter.git - Active-Active Bloom Filter
  * git.schwanenlied.me/yawning/chacha20.git - (X)ChaCha20
  * git.schwanenlied.me/yawning/newhope.git - New Hope
  * git.schwanenlied.me/yawning/x448.git - X448
@@ -49,6 +48,9 @@ Notes:
    rule, though other licensing arrangements may be possible on request.
    I will likely be fairly liberal here, so please contact me if the
    current licensing is unsuitable for your use case.
+
+ * All bundled external dependencies have different (more permissive)
+   licenses that should be followed as appropriate.
 
  * The post-quantum cryptography does not apply to active attackers in
    posession of a quantum computer, and only will protect pre-existing data
