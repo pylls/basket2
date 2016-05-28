@@ -21,7 +21,7 @@ import (
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/ecdh"
-	"git.schwanenlied.me/yawning/newhope.git"
+	"git.schwanenlied.me/yawning/basket2.git/internal/ext/newhope"
 )
 
 const (
