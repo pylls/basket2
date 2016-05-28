@@ -308,7 +308,7 @@ func (c *commonConn) initConn(conn net.Conn) error {
 			// Connected to an IPv6 peer.
 			c.maxRecordSize = tentp.MaxIdealIPv6Size
 		} else {
-			// Commected to an IPv4 peer.
+			// Connected to an IPv4 peer.
 			c.maxRecordSize = tentp.MaxIdealIPv4Size
 		}
 	} else {
