@@ -33,7 +33,7 @@ import (
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
 	"git.schwanenlied.me/yawning/basket2.git/framing"
-	"git.schwanenlied.me/yawning/chacha20.git"
+	"git.schwanenlied.me/yawning/basket2.git/internal/ext/chacha20"
 	"golang.org/x/crypto/poly1305"
 )
 

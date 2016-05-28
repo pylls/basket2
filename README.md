@@ -24,7 +24,6 @@ Dependencies:
  * Go 1.6.x or later - (May work with older versions, don't care if they don't)
  * golang.org/x/crypto - SHA3, Curve25519, Poly1305
  * github.com/dchest/siphash - SipHash-2-4
- * git.schwanenlied.me/yawning/chacha20.git - (X)ChaCha20
  * git.schwanenlied.me/yawning/newhope.git - New Hope
 
 Notes:
