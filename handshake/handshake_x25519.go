@@ -78,9 +78,9 @@ func (c *ClientHandshake) handshakeX25519(rw io.ReadWriter, extData []byte, padL
 	if err != nil {
 		return nil, nil, err
 	}
-	xSharedSecret, ok := c.obfs.privKey.ScalarMult(xPublicKey)
-	if !ok {
-		return nil, nil, ecdh.ErrInvalidPoint
+	xSharedSecret, err := c.obfs.privKey.ScalarMult(xPublicKey)
+	if err != nil {
+		return nil, nil, err
 	}
 	defer crypto.Memwipe(xSharedSecret)
 
@@ -135,9 +135,9 @@ func (s *ServerHandshake) sendRespX25519(w io.Writer, extData []byte, padLen int
 	respBlob = append(respBlob, xPrivateKey.PublicKey().ToBytes()...)
 
 	// X25519 key exchange with both ephemeral keys.
-	xSharedSecret, ok := xPrivateKey.ScalarMult(s.obfs.clientPublicKey)
-	if !ok {
-		return nil, ecdh.ErrInvalidPoint
+	xSharedSecret, err := xPrivateKey.ScalarMult(s.obfs.clientPublicKey)
+	if err != nil {
+		return nil, err
 	}
 	defer crypto.Memwipe(xSharedSecret)
 

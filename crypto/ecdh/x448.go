@@ -70,12 +70,15 @@ func (k *x448PrivateKey) PublicKey() PublicKey {
 	return k.publicKey
 }
 
-func (k *x448PrivateKey) ScalarMult(publicKey PublicKey) ([]byte, bool) {
+func (k *x448PrivateKey) ScalarMult(publicKey PublicKey) ([]byte, error) {
 	xpk := (publicKey).(*x448PublicKey)
 
 	var sharedSecret [X448Size]byte
 	ok := x448.ScalarMult(&sharedSecret, &k.privBytes, &xpk.pubBytes)
-	return sharedSecret[:], ok == 0
+	if ok != 0 {
+		return nil, ErrInvalidPoint
+	}
+	return sharedSecret[:], nil
 }
 
 func (k *x448PrivateKey) Curve() Curve {

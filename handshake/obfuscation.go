@@ -211,13 +211,8 @@ func newClientObfs(rand io.Reader, serverPublicKey ecdh.PublicKey) (*clientObfsC
 
 	// Calculate a shared secret with our ephemeral key, and the server's
 	// long term public key.
-	ok := false
-	o.sharedSecret, ok = o.privKey.ScalarMult(serverPublicKey)
-	if !ok {
-		return nil, ecdh.ErrInvalidPoint
-	}
-
-	return o, nil
+	o.sharedSecret, err = o.privKey.ScalarMult(serverPublicKey)
+	return o, err
 }
 
 type serverObfsCtx struct {
@@ -297,10 +292,9 @@ func (o *serverObfsCtx) recvHandshakeReq(r io.Reader) ([]byte, error) {
 	if o.clientPublicKey, err = ecdh.PublicKeyFromUniformBytes(IdentityCurve, repr[:]); err != nil {
 		return nil, err
 	}
-	ok := false
-	o.sharedSecret, ok = o.keypair.ScalarMult(o.clientPublicKey)
-	if !ok {
-		return nil, ecdh.ErrInvalidPoint
+	o.sharedSecret, err = o.keypair.ScalarMult(o.clientPublicKey)
+	if err != nil {
+		return nil, err
 	}
 
 	// Derive the handshake symmetric keys, and initialize the frame decoder

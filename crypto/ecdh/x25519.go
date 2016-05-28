@@ -89,14 +89,18 @@ func (k *x25519PrivateKey) PublicKey() PublicKey {
 	return k.publicKey
 }
 
-func (k *x25519PrivateKey) ScalarMult(publicKey PublicKey) ([]byte, bool) {
+func (k *x25519PrivateKey) ScalarMult(publicKey PublicKey) ([]byte, error) {
 	xpk := (publicKey).(*x25519PublicKey)
 
 	var sharedSecret [X25519Size]byte
 	ok := !crypto.MemIsZero(xpk.pubBytes[:])
 	curve25519.ScalarMult(&sharedSecret, &k.privBytes, &xpk.pubBytes)
 	ok = ok && !crypto.MemIsZero(sharedSecret[:])
-	return sharedSecret[:], ok
+	if !ok {
+		return nil, ErrInvalidPoint
+	}
+
+	return sharedSecret[:], nil
 }
 
 func (k *x25519PrivateKey) Curve() Curve {

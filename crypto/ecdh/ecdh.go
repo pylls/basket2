@@ -97,10 +97,9 @@ type PrivateKey interface {
 	PublicKey() PublicKey
 
 	// ScalarMult returns a shared secret given a peer's public key, suitable
-	// for use as an input to a key derivation function, and returns true on
-	// success.  The return value MUST be validated to thward invalid point
-	// attacks.
-	ScalarMult(PublicKey) ([]byte, bool)
+	// for use as an input to a key derivation function.  An error is returned
+	// iff the result does not ensre contribuatory behavior from both parties.
+	ScalarMult(PublicKey) ([]byte, error)
 
 	// Curve returns the Curve that this private key is for.
 	Curve() Curve

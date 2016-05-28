@@ -83,9 +83,9 @@ func (c *ClientHandshake) handshakeX448(rw io.ReadWriter, extData []byte, padLen
 	if err != nil {
 		return nil, nil, err
 	}
-	xSharedSecret, ok := xPrivateKey.ScalarMult(xPublicKey)
-	if !ok {
-		return nil, nil, ecdh.ErrInvalidPoint
+	xSharedSecret, err := xPrivateKey.ScalarMult(xPublicKey)
+	if err != nil {
+		return nil, nil, err
 	}
 	defer crypto.Memwipe(xSharedSecret)
 
@@ -144,9 +144,9 @@ func (s *ServerHandshake) sendRespX448(w io.Writer, extData []byte, padLen int) 
 	if err != nil {
 		return nil, err
 	}
-	xSharedSecret, ok := xPrivateKey.ScalarMult(xPublicKey)
-	if !ok {
-		return nil, ecdh.ErrInvalidPoint
+	xSharedSecret, err := xPrivateKey.ScalarMult(xPublicKey)
+	if err != nil {
+		return nil, err
 	}
 	defer crypto.Memwipe(xSharedSecret)
 
