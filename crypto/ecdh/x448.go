@@ -20,8 +20,7 @@ import (
 	"io"
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
-
-	"git.schwanenlied.me/yawning/x448.git"
+	"git.schwanenlied.me/yawning/basket2.git/internal/ext/x448"
 )
 
 // X448Size is the X448 private/public key and shared secret size in bytes.

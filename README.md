@@ -26,7 +26,6 @@ Dependencies:
  * github.com/dchest/siphash - SipHash-2-4
  * git.schwanenlied.me/yawning/chacha20.git - (X)ChaCha20
  * git.schwanenlied.me/yawning/newhope.git - New Hope
- * git.schwanenlied.me/yawning/x448.git - X448
 
 Notes:
 
