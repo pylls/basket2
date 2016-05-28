@@ -38,7 +38,7 @@ import (
 	"errors"
 	"io"
 
-	"git.schwanenlied.me/yawning/basket2.git/ext/x25519/edwards25519"
+	"git.schwanenlied.me/yawning/basket2.git/internal/ext/x25519/edwards25519"
 
 	"golang.org/x/crypto/sha3"
 )
