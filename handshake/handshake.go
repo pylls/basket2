@@ -1,4 +1,4 @@
-// handshake.go - ECDHE + NewHope key exchange.
+// handshake.go - Obfuscated/authenticated key exchange.
 // Copyright (C) 2016 Yawning Angel.
 //
 // This program is free software: you can redistribute it and/or modify
@@ -15,7 +15,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Package handshake implements the basket2 obfuscated/authenticated key
-// exchange currently based on ECDHE + NewHope.
+// exchange.
 package handshake
 
 import (
@@ -25,7 +25,6 @@ import (
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/ecdh"
-	"git.schwanenlied.me/yawning/newhope.git"
 
 	"golang.org/x/crypto/sha3"
 )
@@ -43,7 +42,7 @@ const (
 
 	// MessageSize is the length that all handshake messages get padded to,
 	// without including user extData or padding (2146 bytes).
-	MessageSize = x448RespSize + obfsServerOverhead
+	MessageSize = x448NHRespSize + obfsServerOverhead
 
 	// MinHandshakeSize is the minimum total handshake length.
 	MinHandshakeSize = 4096
@@ -67,7 +66,6 @@ var (
 	ErrInvalidPayload = errors.New("handshake: invalid payload")
 
 	handshakeKdfTweak = []byte("basket2-handshake-v1-kdf-tweak")
-	newhopeRandTweak  = []byte("basket2-newhope-tweak")
 
 	// Note: Ordering matters here, so specify the non-tinfoil hat option
 	// first since it's adequate for all but the most paranoid.
@@ -157,12 +155,9 @@ func newSessionKeys(secrets []([]byte), transcriptDigest []byte) *SessionKeys {
 type ClientHandshake struct {
 	rand io.Reader
 
-	obfs *clientObfsCtx
-
+	obfs      *clientObfsCtx
 	kexMethod KEXMethod
-
-	nhPublicKey  *newhope.PublicKeyAlice
-	nhPrivateKey *newhope.PrivateKeyAlice
+	kexImpl   *clientKexEcdhNewHope
 }
 
 // Handshake completes the client side of the handshake, and returns the
@@ -177,14 +172,7 @@ type ClientHandshake struct {
 func (c *ClientHandshake) Handshake(rw io.ReadWriter, extData []byte, padLen int) (*SessionKeys, []byte, error) {
 	defer c.Reset()
 
-	switch c.kexMethod {
-	case X25519NewHope:
-		return c.handshakeX25519(rw, extData, padLen)
-	case X448NewHope:
-		return c.handshakeX448(rw, extData, padLen)
-	default:
-		return nil, nil, ErrInvalidKEXMethod
-	}
+	return c.kexImpl.handshake(rw, extData, padLen)
 }
 
 // Reset clears a ClientHandshake instance such that senstive material no longer
@@ -194,10 +182,9 @@ func (c *ClientHandshake) Reset() {
 		c.obfs.reset()
 		c.obfs = nil
 	}
-	c.nhPublicKey = nil
-	if c.nhPrivateKey != nil {
-		c.nhPrivateKey.Reset()
-		c.nhPrivateKey = nil
+	if c.kexImpl != nil {
+		c.kexImpl.Reset()
+		c.kexImpl = nil
 	}
 }
 
@@ -213,27 +200,18 @@ func NewClientHandshake(rand io.Reader, kexMethod KEXMethod, serverPublicKey ecd
 	c.rand = rand
 	c.kexMethod = kexMethod
 
-	// Generate the NewHope keypair.
-	h, err := crypto.NewTweakedShake256(rand, newhopeRandTweak)
-	if err != nil {
-		return nil, err
-	}
-	defer h.Reset()
-	if c.nhPrivateKey, c.nhPublicKey, err = newhope.GenerateKeyPair(h); err != nil {
-		return nil, err
-	}
-
-	switch c.kexMethod {
-	case X25519NewHope:
-	case X448NewHope:
-	default:
-		return nil, ErrInvalidKEXMethod
-	}
-
 	// Generate the obfuscation state (which generates a X25519 keypair and
 	// Elligator 2 representative).
 	if c.obfs, err = newClientObfs(rand, serverPublicKey); err != nil {
 		c.Reset()
+		return nil, err
+	}
+
+	// Instantiate the KEX implementation, generating the ephemeral session
+	// keys as needed.  This MUST come after the obfuscation state has been
+	// initialized.
+	c.kexImpl, err = newClientKexEcdhNewHope(c)
+	if err != nil {
 		return nil, err
 	}
 
@@ -248,7 +226,7 @@ type ServerHandshake struct {
 	obfs *serverObfsCtx
 
 	kexMethod KEXMethod
-	reqBlob   []byte
+	kexImpl   *serverKexEcdhNewHope
 }
 
 // RecvHandshakeReq receives and validates the client's handshake request and
@@ -268,16 +246,18 @@ func (s *ServerHandshake) RecvHandshakeReq(r io.Reader) ([]byte, error) {
 		return nil, ErrInvalidPayload
 	}
 	s.kexMethod = KEXMethod(reqBlob[1])
-	s.reqBlob = reqBlob
 	if !s.isAllowedKEXMethod(s.kexMethod) {
 		return nil, ErrInvalidKEXMethod
 	}
 
 	switch s.kexMethod {
-	case X25519NewHope:
-		return s.parseReqX25519()
-	case X448NewHope:
-		return s.parseReqX448()
+	case X25519NewHope, X448NewHope:
+		var extData []byte
+		s.kexImpl, extData, err = newServerKexEcdhNewHope(s, reqBlob)
+		if err != nil {
+			return nil, err
+		}
+		return extData, nil
 	default:
 		return nil, ErrInvalidKEXMethod
 	}
@@ -291,14 +271,7 @@ func (s *ServerHandshake) RecvHandshakeReq(r io.Reader) ([]byte, error) {
 func (s *ServerHandshake) SendHandshakeResp(w io.Writer, extData []byte, padLen int) (*SessionKeys, error) {
 	defer s.Reset()
 
-	switch s.kexMethod {
-	case X25519NewHope:
-		return s.sendRespX25519(w, extData, padLen)
-	case X448NewHope:
-		return s.sendRespX448(w, extData, padLen)
-	default:
-		return nil, ErrInvalidKEXMethod
-	}
+	return s.kexImpl.handshake(w, extData, padLen)
 }
 
 // Reset clears a ServerHandshake instance such that sensitive material no
