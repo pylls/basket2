@@ -57,6 +57,7 @@ var (
 	enabledPaddingMethods []basket2.PaddingMethod
 	enabledKEXMethods     []handshake.KEXMethod
 	copyBufferSize        int
+	clientForcePLPMTUD    bool
 )
 
 func isEnabledKEXMethod(m handshake.KEXMethod) bool {
@@ -210,6 +211,7 @@ func main() {
 	kexMethodsStr := flag.String("kexMethods", "", "Key exchange methods")
 	paddingMethodsStr := flag.String("paddingMethods", "", "Padding methods")
 	bufferSizeArg := flag.Int("bufferSize", 0, "Size of internal per connection buffers (32 KiB per direction)")
+	forcePLPMTUD := flag.Bool("forcePLPMTUD", false, "Force enable Packetization Layer Path MTU Discovery (Client, not recommended)")
 	flag.Parse()
 
 	// Populate the lists of supported algorithms.
@@ -234,6 +236,7 @@ func main() {
 		}
 		os.Exit(0)
 	}
+	clientForcePLPMTUD = *forcePLPMTUD
 
 	if err := overrideKEXMethods(*kexMethodsStr); err != nil {
 		golog.Fatalf("%s: [ERROR]: Failed to set KEX methods: %v", execName, err)

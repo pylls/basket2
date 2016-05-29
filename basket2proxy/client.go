@@ -28,6 +28,7 @@ import (
 
 	"git.schwanenlied.me/yawning/basket2.git"
 	"git.schwanenlied.me/yawning/basket2.git/basket2proxy/internal/log"
+	"git.schwanenlied.me/yawning/basket2.git/basket2proxy/internal/plpmtud"
 	"git.schwanenlied.me/yawning/basket2.git/basket2proxy/internal/proxyextras"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/ecdh"
 	"git.schwanenlied.me/yawning/basket2.git/handshake"
@@ -166,6 +167,16 @@ func (s *clientState) connHandler(socksConn *pt.SocksConn) error {
 	defer conn.Close()
 
 	log.Debugf("%s: Connected to upstream", addrStr)
+
+	// Enable PLPMTUD if requested.  Only supported on certain platforms,
+	// so failures will be logged and ignored.
+	if clientForcePLPMTUD {
+		if err = plpmtud.Enable(conn); err == nil {
+			log.Debugf("%s: PLPMTUD enabled", addrStr)
+		} else {
+			log.Warnf("%s: Failed to enable PLPMTUD: %v", addrStr, err)
+		}
+	}
 
 	// Handshake.
 	if err = conn.SetDeadline(time.Now().Add(clientHandshakeTimeout)); err != nil {
