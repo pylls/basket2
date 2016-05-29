@@ -246,6 +246,9 @@ func newTamarawPadding(conn *commonConn, isClient bool) paddingImpl {
 
 		// Random read side delivery jitter.
 		p.conn.enableReadDelay = true
+
+		// Clamp acceptable packets to the client side lPpad value.
+		p.conn.maxRecordSize = 543
 	}
 
 	p.Add(1)
