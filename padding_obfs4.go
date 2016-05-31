@@ -40,6 +40,12 @@ const (
 	// code thinks we are in the middle of a large burst.
 	PaddingObfs4BurstIAT PaddingMethod = 2
 
+	// PaddingObfs4PacketIAT is the obfs4 style padding algorithm
+	// approximately equivalent to the obfs4 `iat-mode=2` configuration.
+	// Writes are broken up into random sized packets, and randomized
+	// delay is inserted unconditionally.
+	PaddingObfs4PacketIAT PaddingMethod = 3
+
 	// Obfs4SeedLength is the length of the randomness to provide to the obfs4
 	// padding algoriths to parameterize the distributions.
 	Obfs4SeedLength = 32
@@ -58,16 +64,21 @@ type obfs4Padding struct {
 }
 
 func (p *obfs4Padding) shortWrite(b []byte) (n int, err error) {
-	// Special case len(p) being "short".
-	//
-	// This is kind of annoying to obfuscate, since sending 2 segments isn't
-	// that different from sending 1 segment, and I assume the forces of evil
-	// know how to count.
-	//
-	// So, attempt to be somewhat clever by disabling Nagle and sending short
-	// records sized to something from the distribution.
-	p.conn.setNagle(false)
-	defer p.conn.setNagle(true)
+	if p.method != PaddingObfs4PacketIAT {
+		// Special case len(p) being "short".
+		//
+		// This is kind of annoying to obfuscate, since sending 2 segments
+		// isn't that different from sending 1 segment, and I assume the
+		// forces of evil know how to count.
+		//
+		// So, attempt to be somewhat clever by disabling Nagle and sending
+		// short records sized to something from the distribution.
+		//
+		// These concerns naturally do not apply to the packetization
+		// based obfuscation method.
+		p.conn.setNagle(false)
+		defer p.conn.setNagle(true)
+	}
 
 	for remaining := len(b); remaining > 0; {
 		// Sample from the "short" distribution, which omits values less than
@@ -155,7 +166,7 @@ func (p *obfs4Padding) largeWrite(b []byte) (n int, err error) {
 }
 
 func (p *obfs4Padding) Write(b []byte) (n int, err error) {
-	if len(b) < p.conn.maxRecordSize {
+	if len(b) < p.conn.maxRecordSize || p.method == PaddingObfs4PacketIAT {
 		n, err = p.shortWrite(b)
 	} else {
 		n, err = p.largeWrite(b)
@@ -197,20 +208,28 @@ func newObfs4Padding(conn *commonConn, m PaddingMethod, seed []byte) (paddingImp
 		p.conn.enableReadDelay = true
 	}
 
-	// There's a fundemental mismatch between what our idea of a packet should
-	// be and what should be sent over the wire due to unavailable/inaccurate
-	// PMTU information, and variable length TCP headers (SACK options).
-	//
-	// So fuck it, enable Nagle's algorithm and hope that it helps to mask the
-	// disconnect.
-	conn.setNagle(true)
+	if m == PaddingObfs4PacketIAT {
+		// The packetized padding will never send large writes, and thus
+		// record size enforcement can be enabled, and we can skip messing
+		// with Nagle entirely.
+		p.conn.enforceRecordSize = true
+	} else {
+		// There's a fundemental mismatch between what our idea of a packet
+		//should // be and what should be sent over the wire due to
+		// unavailable/inaccurate PMTU information, and variable length TCP
+		// headers (SACK options).
+		//
+		// So fuck it, enable Nagle's algorithm and hope that it helps to
+		// mask the disconnect.
+		conn.setNagle(true)
+	}
 
 	return p, nil
 }
 
 func obfs4PaddingDefaultParams(method PaddingMethod) ([]byte, error) {
 	switch method {
-	case PaddingObfs4Burst, PaddingObfs4BurstIAT:
+	case PaddingObfs4Burst, PaddingObfs4BurstIAT, PaddingObfs4PacketIAT:
 		seed := make([]byte, Obfs4SeedLength)
 		if _, err := io.ReadFull(rand.Reader, seed); err != nil {
 			return nil, err

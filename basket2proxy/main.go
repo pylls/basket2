@@ -168,7 +168,7 @@ func overrideKEXMethods(s string) error {
 	return nil
 }
 
-func overridePaddingMethods(s string) error {
+func overridePaddingMethods(s string, isClient bool) error {
 	var methods []basket2.PaddingMethod
 
 	if s == "" {
@@ -177,6 +177,14 @@ func overridePaddingMethods(s string) error {
 		for _, m := range enabledPaddingMethods {
 			switch m {
 			case basket2.PaddingNull, basket2.PaddingTamaraw:
+				// PaddingNull - Unobfuscated.
+				// PaddingTamaraw - Extreme overhead.
+			case basket2.PaddingObfs4PacketIAT:
+				// PaddingObfs4PacketIAT - Clients should use it if available,
+				//   servers should not offer it by default.
+				if isClient {
+					methods = append(methods, m)
+				}
 			default:
 				methods = append(methods, m)
 			}
@@ -241,9 +249,6 @@ func main() {
 	if err := overrideKEXMethods(*kexMethodsStr); err != nil {
 		golog.Fatalf("%s: [ERROR]: Failed to set KEX methods: %v", execName, err)
 	}
-	if err := overridePaddingMethods(*paddingMethodsStr); err != nil {
-		golog.Fatalf("%s: [ERROR]: Failed to set padding methods: %v", execName, err)
-	}
 	if *bufferSizeArg != 0 {
 		copyBufferSize = *bufferSizeArg
 		if copyBufferSize < 8*1024 {
@@ -258,6 +263,11 @@ func main() {
 	}
 	if stateDir, err = pt.MakeStateDir(); err != nil {
 		golog.Fatalf("%s: [ERROR]: No state directory: %v", execName, err)
+	}
+
+	// Override the padding methods after it's know if this is a client or not.
+	if err := overridePaddingMethods(*paddingMethodsStr, isClient); err != nil {
+		golog.Fatalf("%s: [ERROR]: Failed to set padding methods: %v", execName, err)
 	}
 
 	// Bring file backed logging online.

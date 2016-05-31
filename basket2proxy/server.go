@@ -109,6 +109,7 @@ func (s *serverState) initPaddingParams() error {
 	methods := []basket2.PaddingMethod{
 		basket2.PaddingObfs4Burst,
 		basket2.PaddingObfs4BurstIAT,
+		basket2.PaddingObfs4PacketIAT,
 	}
 
 	paramsFile := path.Join(stateDir, bridgeParamsFile)

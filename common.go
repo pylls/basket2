@@ -80,6 +80,7 @@ var (
 
 	supportedPaddingMethods = []PaddingMethod{
 		PaddingTamaraw,
+		PaddingObfs4PacketIAT,
 		PaddingObfs4BurstIAT,
 		PaddingObfs4Burst,
 		PaddingNull,
@@ -124,6 +125,8 @@ func (m PaddingMethod) ToString() string {
 		return "Obfs4Burst"
 	case PaddingObfs4BurstIAT:
 		return "Obfs4BurstIAT"
+	case PaddingObfs4PacketIAT:
+		return "Obfs4PacketIAT"
 	case PaddingTamaraw:
 		return "Tamaraw"
 	default:
@@ -141,6 +144,8 @@ func PaddingMethodFromString(s string) PaddingMethod {
 		return PaddingObfs4Burst
 	case "Obfs4BurstIAT":
 		return PaddingObfs4BurstIAT
+	case "Obfs4PacketIAT":
+		return PaddingObfs4PacketIAT
 	case "Tamaraw":
 		return PaddingTamaraw
 	default:
@@ -397,7 +402,7 @@ func (c *commonConn) setPadding(method PaddingMethod, params []byte) error {
 	switch method {
 	case PaddingNull:
 		c.impl = newNullPadding(c)
-	case PaddingObfs4Burst, PaddingObfs4BurstIAT:
+	case PaddingObfs4Burst, PaddingObfs4BurstIAT, PaddingObfs4PacketIAT:
 		var err error
 		c.impl, err = newObfs4Padding(c, method, params)
 		if err != nil {
@@ -544,7 +549,7 @@ func DefaultPaddingParams(method PaddingMethod) ([]byte, error) {
 	switch method {
 	case PaddingNull, PaddingTamaraw:
 		return nil, nil
-	case PaddingObfs4Burst, PaddingObfs4BurstIAT:
+	case PaddingObfs4Burst, PaddingObfs4BurstIAT, PaddingObfs4PacketIAT:
 		return obfs4PaddingDefaultParams(method)
 	}
 	return nil, ErrInvalidPadding
