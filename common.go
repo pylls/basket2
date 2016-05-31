@@ -542,16 +542,10 @@ func paddingOk(needle PaddingMethod, haystack []PaddingMethod) bool {
 // padding method that requires parameterization.
 func DefaultPaddingParams(method PaddingMethod) ([]byte, error) {
 	switch method {
-	case PaddingNull:
+	case PaddingNull, PaddingTamaraw:
 		return nil, nil
 	case PaddingObfs4Burst, PaddingObfs4BurstIAT:
-		// This should be parameterized from persistent state, but allow
-		// random parametrization.
-		seed := make([]byte, Obfs4SeedLength)
-		if _, err := io.ReadFull(rand.Reader, seed); err != nil {
-			return nil, err
-		}
-		return seed, nil
+		return obfs4PaddingDefaultParams(method)
 	}
 	return nil, ErrInvalidPadding
 }

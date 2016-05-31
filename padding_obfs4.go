@@ -18,6 +18,7 @@ package basket2
 
 import (
 	"bytes"
+	"io"
 	"time"
 
 	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
@@ -205,4 +206,16 @@ func newObfs4Padding(conn *commonConn, m PaddingMethod, seed []byte) (paddingImp
 	conn.setNagle(true)
 
 	return p, nil
+}
+
+func obfs4PaddingDefaultParams(method PaddingMethod) ([]byte, error) {
+	switch method {
+	case PaddingObfs4Burst, PaddingObfs4BurstIAT:
+		seed := make([]byte, Obfs4SeedLength)
+		if _, err := io.ReadFull(rand.Reader, seed); err != nil {
+			return nil, err
+		}
+		return seed, nil
+	}
+	return nil, ErrInvalidPadding
 }
