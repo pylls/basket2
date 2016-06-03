@@ -227,7 +227,6 @@ func newTamarawPadding(conn *commonConn, isClient bool) paddingImpl {
 	//
 	// Lseg = 100 gives a maximum attacker accuracy of 0.59, while 500
 	// reduces that to ~0.35.
-	//
 
 	if isClient {
 		// Tune for "short infrequent bursts".

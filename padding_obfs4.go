@@ -215,7 +215,7 @@ func newObfs4Padding(conn *commonConn, m PaddingMethod, seed []byte) (paddingImp
 		p.conn.enforceRecordSize = true
 	} else {
 		// There's a fundemental mismatch between what our idea of a packet
-		//should // be and what should be sent over the wire due to
+		//should be and what should be sent over the wire due to
 		// unavailable/inaccurate PMTU information, and variable length TCP
 		// headers (SACK options).
 		//
