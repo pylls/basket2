@@ -202,11 +202,10 @@ func newObfs4Padding(conn *commonConn, m PaddingMethod, seed []byte) (paddingImp
 	// IAT delay dist between 0 to 25 ms.
 	// Note: This is always needed due to the short write obfsucation strategy.
 	p.delayDist = discretedist.NewUniform(r, 0, 5*1000, 100, false)
-	if !p.conn.isClient {
-		// Add random [0, 2 * tau) read delay to mask timings on data
-		// fed to the upstream as well.
-		p.conn.enableReadDelay = true
-	}
+
+	// Add random [0, 2 * tau) read delay to mask timings on data
+	// fed to the upstream as well.
+	p.conn.enableReadDelay = true
 
 	if m == PaddingObfs4PacketIAT {
 		// The packetized padding will never send large writes, and thus
