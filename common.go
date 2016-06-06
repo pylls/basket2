@@ -79,6 +79,7 @@ var (
 	ErrNotSupported = errors.New("basket2: operation not supported")
 
 	supportedPaddingMethods = []PaddingMethod{
+		PaddingTamarawBulk,
 		PaddingTamaraw,
 		PaddingObfs4PacketIAT,
 		PaddingObfs4BurstIAT,
@@ -129,6 +130,8 @@ func (m PaddingMethod) ToString() string {
 		return "Obfs4PacketIAT"
 	case PaddingTamaraw:
 		return "Tamaraw"
+	case PaddingTamarawBulk:
+		return "TamarawBulk"
 	default:
 		return "[Unknown algorithm]"
 	}
@@ -148,6 +151,8 @@ func PaddingMethodFromString(s string) PaddingMethod {
 		return PaddingObfs4PacketIAT
 	case "Tamaraw":
 		return PaddingTamaraw
+	case "TamarawBulk":
+		return PaddingTamarawBulk
 	default:
 		return PaddingInvalid
 	}
@@ -408,8 +413,8 @@ func (c *commonConn) setPadding(method PaddingMethod, params []byte) error {
 		if err != nil {
 			return err
 		}
-	case PaddingTamaraw:
-		c.impl = newTamarawPadding(c, c.isClient)
+	case PaddingTamaraw, PaddingTamarawBulk:
+		c.impl = newTamarawPadding(c, method, c.isClient)
 	default:
 		return ErrInvalidPadding
 	}
@@ -547,7 +552,7 @@ func paddingOk(needle PaddingMethod, haystack []PaddingMethod) bool {
 // padding method that requires parameterization.
 func DefaultPaddingParams(method PaddingMethod) ([]byte, error) {
 	switch method {
-	case PaddingNull, PaddingTamaraw:
+	case PaddingNull, PaddingTamaraw, PaddingTamarawBulk:
 		return nil, nil
 	case PaddingObfs4Burst, PaddingObfs4BurstIAT, PaddingObfs4PacketIAT:
 		return obfs4PaddingDefaultParams(method)

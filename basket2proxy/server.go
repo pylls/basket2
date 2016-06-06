@@ -179,7 +179,7 @@ func (s *serverState) savePaddingParams(paramsFile string) error {
 
 func (s *serverState) getPaddingParams(method basket2.PaddingMethod) ([]byte, error) {
 	switch method {
-	case basket2.PaddingNull, basket2.PaddingTamaraw:
+	case basket2.PaddingNull, basket2.PaddingTamaraw, basket2.PaddingTamarawBulk:
 		// These algorithms are unparameterized.
 		return nil, nil
 	default:

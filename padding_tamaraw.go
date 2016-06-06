@@ -43,6 +43,10 @@ const (
 	// primarily interested in things like web browsing, and that the
 	// link MTU is 1500 bytes.
 	PaddingTamaraw PaddingMethod = 0xf0
+
+	// PaddingTamarawBulk is a variant of PaddingTamaraw with parameters
+	// that are tuned for bulk transport in both directions.
+	PaddingTamarawBulk PaddingMethod = 0xf1
 )
 
 type tamarawPadding struct {
@@ -205,7 +209,7 @@ func (p *tamarawPadding) OnClose() {
 
 }
 
-func newTamarawPadding(conn *commonConn, isClient bool) paddingImpl {
+func newTamarawPadding(conn *commonConn, method PaddingMethod, isClient bool) paddingImpl {
 	p := new(tamarawPadding)
 	p.conn = conn
 	p.sendChan = make(chan []byte, 64)
@@ -215,6 +219,7 @@ func newTamarawPadding(conn *commonConn, isClient bool) paddingImpl {
 		}
 	}
 	p.conn.enforceRecordSize = true
+	p.conn.enableReadDelay = true
 
 	// The thesis that evaluates this suggests:
 	//
@@ -228,7 +233,7 @@ func newTamarawPadding(conn *commonConn, isClient bool) paddingImpl {
 	// Lseg = 100 gives a maximum attacker accuracy of 0.59, while 500
 	// reduces that to ~0.35.
 
-	if isClient {
+	if isClient && method != PaddingTamarawBulk {
 		// Tune for "short infrequent bursts".
 		//
 		// The CS-BuFLO's early termination feature suggests that the tail
@@ -243,11 +248,11 @@ func newTamarawPadding(conn *commonConn, isClient bool) paddingImpl {
 		p.lPpad = p.conn.maxRecordSize // Could lower it by 2 for PPPoE links.
 		p.lSeg = 100
 
-		// Random read side delivery jitter.
-		p.conn.enableReadDelay = true
-
-		// Clamp acceptable packets to the client side lPpad value.
-		p.conn.maxRecordSize = 543
+		// Server side specific tunables.
+		if !isClient && method == PaddingTamaraw {
+			// Clamp acceptable packets to the client side lPpad value.
+			p.conn.maxRecordSize = 543
+		}
 	}
 
 	p.Add(1)
