@@ -314,12 +314,14 @@ func (c *commonConn) initConn(conn net.Conn) error {
 	// resemble what goes out on the wire depending on what the kernel
 	// does and the state of the TCP/IP stack.
 	if taddr, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
-		if taddr.IP.To16() != nil {
-			// Connected to an IPv6 peer.
-			c.maxRecordSize = tentp.MaxIdealIPv6Size
-		} else {
+		// For some reason, IP.To16() always returns something, regardless
+		// of if it's correct or not, so check IPv4 first.
+		if taddr.IP.To4() != nil {
 			// Connected to an IPv4 peer.
 			c.maxRecordSize = tentp.MaxIdealIPv4Size
+		} else {
+			// Connected to an IPv6 peer.
+			c.maxRecordSize = tentp.MaxIdealIPv6Size
 		}
 	} else {
 		// No idea what kind of connection this is, use the IPv4 max frame
