@@ -22,9 +22,9 @@ import (
 	"sync"
 	"time"
 
+	"git.schwanenlied.me/yawning/a2filter.git"
 	"git.schwanenlied.me/yawning/basket2.git/crypto"
 	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
-	"git.schwanenlied.me/yawning/basket2.git/internal/ext/a2filter"
 
 	"github.com/dchest/siphash"
 )
