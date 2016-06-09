@@ -21,9 +21,14 @@ Features:
 
 Dependencies:
 
+The more obsucre dependencies are included using the Go 1.6 `vendor` scheme,
+and are managed via `git-subtree`.  Certain larger dependencies likely to be
+already packaged are not included (as opposed to `vendor`-ing everything).
+
  * Go 1.6.x or later - (May work with older versions, don't care if they don't)
  * golang.org/x/crypto - SHA3, Curve25519, Poly1305
- * github.com/dchest/siphash - SipHash-2-4
+ * golang.org/x/net - Only for `basket2proxy`.
+ * git.torproject.org/pluggable-transports/goptlib.git - Only for `basket2proxy`.
 
 Notes:
 

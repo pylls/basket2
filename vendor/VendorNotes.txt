@@ -4,3 +4,36 @@ directory scheme and git-subtree.
 Go 1.5 Vendor Experiment (Enabled as of 1.6):
 https://docs.google.com/document/d/1Bz5-UB7g2uPBdOx-rw5t9MxJwkfpx90cqG9AFL0JAYo/edit
 
+Go and dependencies as subtrees:
+https://github.com/jamesgraves/example-go-app
+
+Upstream/subtree setup:
+
+ * a2filter
+
+   git remote add -f a2filter-vendor gogs@git.schwanenlied.me:yawning/a2filter.git
+   git subtree add --prefix vendor/git.schwanenlied.me/yawning/a2filter.git a2filter-vendor master --squash
+
+ * chacha20
+
+   git remote add -f chacha20-vendor gogs@git.schwanenlied.me:yawning/chacha20.git
+   git subtree add --prefix vendor/git.schwanenlied.me/yawning/chacha20.git chacha20-vendor master --squash
+
+ * newhope
+
+   git remote add -f newhope-vendor gogs@git.schwanenlied.me:yawning/newhope.git
+   git subtree add --prefix vendor/git.schwanenlied.me/yawning/newhope.git newhope-vendor master --squash
+
+ * x448
+
+   git remote add -f x448-vendor gogs@git.schwanenlied.me:yawning/x448.git
+   git subtree add --prefix vendor/git.schwanenlied.me/yawning/x448.git x448-vendor master --squash
+
+ * siphash (3rd party)
+
+   git remote add -f siphash-vendor https://github.com/dchest/siphash
+   git subtree add --prefix vendor/github.com/dchest/siphash siphash-vendor master --squash
+
+Updating:
+
+ git subtree pull --prefix vendor/git.schwanenlied.me/yanwing/package.git package-vendor master --squash
