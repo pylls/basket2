@@ -1,0 +1,6 @@
+The obscure basket2 external dependencies are managed via Go's `vendor`
+directory scheme and git-subtree.
+
+Go 1.5 Vendor Experiment (Enabled as of 1.6):
+https://docs.google.com/document/d/1Bz5-UB7g2uPBdOx-rw5t9MxJwkfpx90cqG9AFL0JAYo/edit
+
