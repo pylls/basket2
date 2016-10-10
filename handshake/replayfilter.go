@@ -154,3 +154,12 @@ func NewSmallReplayFilter() (ReplayFilter, error) {
 	f.compactTimer = time.AfterFunc(fullCompactInterval, f.fullCompact)
 	return f, nil
 }
+
+// NewDisabledReplayFilter creates a new disabled filter.
+func NewDisabledReplayFilter() (ReplayFilter, error) {
+	return new(disabledReplayFilter), nil
+}
+
+type disabledReplayFilter struct{}
+
+func (f *disabledReplayFilter) TestAndSet(b []byte) bool { return false }

@@ -56,6 +56,7 @@ var (
 	errInvalidKey = errors.New("identity: deserialized key is invalid")
 
 	useLargeReplayFilter bool
+	disableReplayFilter  bool
 )
 
 type serverState struct {
@@ -360,7 +361,9 @@ func initServerListener(si *pt.ServerInfo, bindaddr *pt.Bindaddr) (net.Listener,
 
 	// Create the replay prevention filter.
 	var rf handshake.ReplayFilter
-	if useLargeReplayFilter {
+	if disableReplayFilter {
+		rf, err = handshake.NewDisabledReplayFilter()
+	} else if useLargeReplayFilter {
 		rf, err = handshake.NewLargeReplayFilter()
 	} else {
 		rf, err = handshake.NewSmallReplayFilter()
@@ -445,4 +448,6 @@ func serverInit() []net.Listener {
 
 func init() {
 	flag.BoolVar(&useLargeReplayFilter, "serverLargeReplayFilter", false, "Use (probabalistic) high capacity replay detection")
+	flag.BoolVar(&disableReplayFilter, "disableReplayFilter", false,
+		"Disable the replay filter")
 }

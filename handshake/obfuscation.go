@@ -126,13 +126,13 @@ func (o *clientObfsCtx) handshake(rw io.ReadWriter, msg []byte, padLen int) ([]b
 	tHash.Write(reqBlob)
 
 	// Send the request blob.
-	if _, err := rw.Write(reqBlob[:]); err != nil {
+	if _, err = rw.Write(reqBlob[:]); err != nil {
 		return nil, err
 	}
 
 	// Receive/Decode the peer's response TENTP header.
 	var respHdr [tentp.FramingOverhead]byte
-	if _, err := io.ReadFull(rw, respHdr[:]); err != nil {
+	if _, err = io.ReadFull(rw, respHdr[:]); err != nil {
 		return nil, err
 	}
 	tHash.Write(respHdr[:])
@@ -314,7 +314,7 @@ func (o *serverObfsCtx) recvHandshakeReq(r io.Reader) ([]byte, error) {
 
 	// Read/Decode client request header.
 	var reqHdr [tentp.FramingOverhead]byte
-	if _, err := io.ReadFull(r, reqHdr[:]); err != nil {
+	if _, err = io.ReadFull(r, reqHdr[:]); err != nil {
 		return nil, err
 	}
 	o.tHash.Write(reqHdr[:])
