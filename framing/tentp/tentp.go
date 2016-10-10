@@ -31,8 +31,8 @@ import (
 	"errors"
 	"io"
 
-	"git.schwanenlied.me/yawning/basket2.git/crypto"
-	"git.schwanenlied.me/yawning/basket2.git/framing"
+	"github.com/pylls/basket2/crypto"
+	"github.com/pylls/basket2/framing"
 	"git.schwanenlied.me/yawning/chacha20.git"
 
 	"golang.org/x/crypto/poly1305"

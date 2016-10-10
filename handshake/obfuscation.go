@@ -24,10 +24,10 @@ import (
 	"io"
 	"time"
 
-	"git.schwanenlied.me/yawning/basket2.git/crypto"
-	"git.schwanenlied.me/yawning/basket2.git/crypto/ecdh"
-	"git.schwanenlied.me/yawning/basket2.git/framing"
-	"git.schwanenlied.me/yawning/basket2.git/framing/tentp"
+	"github.com/pylls/basket2/crypto"
+	"github.com/pylls/basket2/crypto/ecdh"
+	"github.com/pylls/basket2/framing"
+	"github.com/pylls/basket2/framing/tentp"
 
 	"golang.org/x/crypto/sha3"
 )

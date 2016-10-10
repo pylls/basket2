@@ -19,8 +19,8 @@ package ecdh
 import (
 	"io"
 
-	"git.schwanenlied.me/yawning/basket2.git/crypto"
-	"git.schwanenlied.me/yawning/basket2.git/internal/ext/x25519/elligator2"
+	"github.com/pylls/basket2/crypto"
+	"github.com/pylls/basket2/internal/ext/x25519/elligator2"
 
 	"golang.org/x/crypto/curve25519"
 )

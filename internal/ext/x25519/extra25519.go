@@ -7,7 +7,7 @@ package x25519
 import (
 	"crypto/sha512"
 
-	"git.schwanenlied.me/yawning/basket2.git/internal/ext/x25519/edwards25519"
+	"github.com/pylls/basket2/internal/ext/x25519/edwards25519"
 )
 
 // PrivateKeyToCurve25519 converts an ed25519 private key into a corresponding

@@ -29,13 +29,13 @@ import (
 	"path"
 	"time"
 
-	"git.schwanenlied.me/yawning/basket2.git"
-	"git.schwanenlied.me/yawning/basket2.git/basket2proxy/internal/log"
-	"git.schwanenlied.me/yawning/basket2.git/crypto"
-	"git.schwanenlied.me/yawning/basket2.git/crypto/ecdh"
-	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
-	"git.schwanenlied.me/yawning/basket2.git/framing/tentp"
-	"git.schwanenlied.me/yawning/basket2.git/handshake"
+	"github.com/pylls/basket2"
+	"github.com/pylls/basket2/basket2proxy/internal/log"
+	"github.com/pylls/basket2/crypto"
+	"github.com/pylls/basket2/crypto/ecdh"
+	"github.com/pylls/basket2/crypto/rand"
+	"github.com/pylls/basket2/framing/tentp"
+	"github.com/pylls/basket2/handshake"
 
 	"git.torproject.org/pluggable-transports/goptlib.git"
 )

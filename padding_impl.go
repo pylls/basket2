@@ -19,7 +19,7 @@ package basket2
 import (
 	"bytes"
 
-	"git.schwanenlied.me/yawning/basket2.git/framing"
+	"github.com/pylls/basket2/framing"
 )
 
 type paddingImpl interface {

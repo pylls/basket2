@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"testing"
 
-	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
+	"github.com/pylls/basket2/crypto/rand"
 )
 
 func TestUniformDist(t *testing.T) {

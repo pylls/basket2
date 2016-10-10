@@ -23,8 +23,8 @@ import (
 	"time"
 
 	"git.schwanenlied.me/yawning/a2filter.git"
-	"git.schwanenlied.me/yawning/basket2.git/crypto"
-	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
+	"github.com/pylls/basket2/crypto"
+	"github.com/pylls/basket2/crypto/rand"
 
 	"github.com/dchest/siphash"
 )

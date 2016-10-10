@@ -21,10 +21,10 @@ import (
 	"io"
 	"time"
 
-	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
-	"git.schwanenlied.me/yawning/basket2.git/framing"
-	"git.schwanenlied.me/yawning/basket2.git/framing/tentp"
-	"git.schwanenlied.me/yawning/basket2.git/internal/discretedist"
+	"github.com/pylls/basket2/crypto/rand"
+	"github.com/pylls/basket2/framing"
+	"github.com/pylls/basket2/framing/tentp"
+	"github.com/pylls/basket2/internal/discretedist"
 )
 
 const (

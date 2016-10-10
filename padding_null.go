@@ -19,8 +19,8 @@ package basket2
 import (
 	"bytes"
 
-	"git.schwanenlied.me/yawning/basket2.git/framing"
-	"git.schwanenlied.me/yawning/basket2.git/framing/tentp"
+	"github.com/pylls/basket2/framing"
+	"github.com/pylls/basket2/framing/tentp"
 )
 
 const (

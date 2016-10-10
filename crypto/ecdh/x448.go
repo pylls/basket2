@@ -19,7 +19,7 @@ package ecdh
 import (
 	"io"
 
-	"git.schwanenlied.me/yawning/basket2.git/crypto"
+	"github.com/pylls/basket2/crypto"
 	"git.schwanenlied.me/yawning/x448.git"
 )
 

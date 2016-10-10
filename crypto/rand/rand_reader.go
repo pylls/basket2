@@ -20,7 +20,7 @@ import (
 	csrand "crypto/rand"
 	"io"
 
-	"git.schwanenlied.me/yawning/basket2.git/crypto"
+	"github.com/pylls/basket2/crypto"
 
 	"golang.org/x/crypto/sha3"
 )

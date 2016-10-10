@@ -31,11 +31,11 @@ import (
 	"sync"
 	"syscall"
 
-	"git.schwanenlied.me/yawning/basket2.git"
-	"git.schwanenlied.me/yawning/basket2.git/basket2proxy/internal/log"
-	"git.schwanenlied.me/yawning/basket2.git/basket2proxy/internal/ptextras"
-	"git.schwanenlied.me/yawning/basket2.git/handshake"
 	"git.torproject.org/pluggable-transports/goptlib.git"
+	"github.com/pylls/basket2"
+	"github.com/pylls/basket2/basket2proxy/internal/log"
+	"github.com/pylls/basket2/basket2proxy/internal/ptextras"
+	"github.com/pylls/basket2/handshake"
 )
 
 const (

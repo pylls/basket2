@@ -32,9 +32,9 @@ import (
 	"sync"
 	"time"
 
-	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
-	"git.schwanenlied.me/yawning/basket2.git/framing"
-	"git.schwanenlied.me/yawning/basket2.git/framing/tentp"
+	"github.com/pylls/basket2/crypto/rand"
+	"github.com/pylls/basket2/framing"
+	"github.com/pylls/basket2/framing/tentp"
 )
 
 const (

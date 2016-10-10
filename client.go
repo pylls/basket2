@@ -19,10 +19,10 @@ package basket2
 import (
 	"net"
 
-	"git.schwanenlied.me/yawning/basket2.git/crypto/ecdh"
-	"git.schwanenlied.me/yawning/basket2.git/crypto/rand"
-	"git.schwanenlied.me/yawning/basket2.git/framing"
-	"git.schwanenlied.me/yawning/basket2.git/handshake"
+	"github.com/pylls/basket2/crypto/ecdh"
+	"github.com/pylls/basket2/crypto/rand"
+	"github.com/pylls/basket2/framing"
+	"github.com/pylls/basket2/handshake"
 )
 
 // ClientConfig is the client configuration parameters to use when

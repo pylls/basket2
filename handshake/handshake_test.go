@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"git.schwanenlied.me/yawning/basket2.git/crypto/ecdh"
+	"github.com/pylls/basket2/crypto/ecdh"
 )
 
 var (

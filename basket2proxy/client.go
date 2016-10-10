@@ -26,12 +26,12 @@ import (
 	"syscall"
 	"time"
 
-	"git.schwanenlied.me/yawning/basket2.git"
-	"git.schwanenlied.me/yawning/basket2.git/basket2proxy/internal/log"
-	"git.schwanenlied.me/yawning/basket2.git/basket2proxy/internal/plpmtud"
-	"git.schwanenlied.me/yawning/basket2.git/basket2proxy/internal/proxyextras"
-	"git.schwanenlied.me/yawning/basket2.git/crypto/ecdh"
-	"git.schwanenlied.me/yawning/basket2.git/handshake"
+	"github.com/pylls/basket2"
+	"github.com/pylls/basket2/basket2proxy/internal/log"
+	"github.com/pylls/basket2/basket2proxy/internal/plpmtud"
+	"github.com/pylls/basket2/basket2proxy/internal/proxyextras"
+	"github.com/pylls/basket2/crypto/ecdh"
+	"github.com/pylls/basket2/handshake"
 
 	"git.torproject.org/pluggable-transports/goptlib.git"
 

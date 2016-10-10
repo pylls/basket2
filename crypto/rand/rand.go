@@ -25,7 +25,7 @@ import (
 	"math/rand"
 	"sync"
 
-	"git.schwanenlied.me/yawning/basket2.git/crypto"
+	"github.com/pylls/basket2/crypto"
 
 	"github.com/dchest/siphash"
 	"golang.org/x/crypto/sha3"
