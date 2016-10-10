@@ -148,11 +148,11 @@ func (s *clientState) connHandler(socksConn *pt.SocksConn) error {
 	// Handle the proxy.
 	dialFn := proxy.Direct.Dial
 	if s.proxyURL != nil {
-		dialer, err := proxy.FromURL(s.proxyURL, proxy.Direct)
-		if err != nil {
-			log.Errorf("%s: Failed to obtain proxy dialer: %v", addrStr, log.ElideError(err))
+		dialer, er := proxy.FromURL(s.proxyURL, proxy.Direct)
+		if er != nil {
+			log.Errorf("%s: Failed to obtain proxy dialer: %v", addrStr, log.ElideError(er))
 			socksConn.Reject()
-			return err
+			return er
 		}
 		dialFn = dialer.Dial
 	}
