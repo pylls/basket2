@@ -85,6 +85,7 @@ var (
 		PaddingObfs4BurstIAT,
 		PaddingObfs4Burst,
 		PaddingNull,
+		PaddingApe,
 	}
 )
 
@@ -132,6 +133,8 @@ func (m PaddingMethod) ToString() string {
 		return "Tamaraw"
 	case PaddingTamarawBulk:
 		return "TamarawBulk"
+	case PaddingApe:
+		return "APE"
 	default:
 		return "[Unknown algorithm]"
 	}

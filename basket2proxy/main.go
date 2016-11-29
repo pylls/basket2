@@ -176,9 +176,10 @@ func overridePaddingMethods(s string, isClient bool) error {
 		// unless the admin knows what they are doing.
 		for _, m := range enabledPaddingMethods {
 			switch m {
-			case basket2.PaddingNull, basket2.PaddingTamaraw, basket2.PaddingTamarawBulk:
+			case basket2.PaddingNull, basket2.PaddingTamaraw, basket2.PaddingTamarawBulk, basket2.PaddingApe:
 				// PaddingNull - Unobfuscated.
 				// PaddingTamaraw, PaddingTamarawBulk - Extreme overhead.
+				// PaddingApe - Experimental.
 			case basket2.PaddingObfs4PacketIAT:
 				// PaddingObfs4PacketIAT - Clients should use it if available,
 				//   servers should not offer it by default.
