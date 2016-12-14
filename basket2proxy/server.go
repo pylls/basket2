@@ -247,6 +247,7 @@ func (s *serverState) connHandler(conn net.Conn) error {
 	}
 
 	log.Debugf("%s: Handshaked with peer", addrStr)
+	log.Debugf("%s: Padding method %s", addrStr, bConn.PaddingMethod().ToString())
 
 	// Connect to the caller's ExtOR Port.
 	orConn, err := pt.DialOr(s.info, bConn.RemoteAddr().String(), transportName)
