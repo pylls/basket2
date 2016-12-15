@@ -90,38 +90,8 @@ func copyLoop(bConn, orConn net.Conn, addrStr string) {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		defer orConn.Close()
-		defer bConn.Close()
-
-		var err error
-		if copyBufferSize == 0 {
-			_, err = io.Copy(orConn, bConn)
-		} else {
-			buf := make([]byte, copyBufferSize)
-			_, err = io.CopyBuffer(orConn, bConn, buf)
-		}
-
-		errChan <- err
-	}()
-	go func() {
-		defer wg.Done()
-		defer bConn.Close()
-		defer orConn.Close()
-
-		var err error
-		if copyBufferSize == 0 {
-			_, err = io.Copy(bConn, orConn)
-		} else {
-			buf := make([]byte, copyBufferSize)
-			_, err = io.CopyBuffer(bConn, orConn, buf)
-		}
-
-		errChan <- err
-	}()
-
+	go copyFromTo(orConn, bConn, &wg, errChan)
+	go copyFromTo(bConn, orConn, &wg, errChan)
 	wg.Wait()
 
 	// Log per-connection stats.
@@ -145,6 +115,23 @@ func copyLoop(bConn, orConn net.Conn, addrStr string) {
 	} else {
 		log.Infof("%s: Closed connection", addrStr)
 	}
+}
+
+func copyFromTo(dst, src net.Conn, wg *sync.WaitGroup, errChan chan error) {
+	defer wg.Done()
+	defer dst.Close()
+	defer src.Close()
+
+	var err error
+	var buf []byte
+	if copyBufferSize == 0 { // this is what io.Copy and io.CopyBuffer does
+		buf = make([]byte, 32*1024)
+	} else {
+		buf = make([]byte, copyBufferSize)
+	}
+
+	_, err = io.CopyBuffer(dst, src, buf)
+	errChan <- err
 }
 
 func overrideKEXMethods(s string) error {
