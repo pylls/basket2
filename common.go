@@ -156,6 +156,8 @@ func PaddingMethodFromString(s string) PaddingMethod {
 		return PaddingTamaraw
 	case "TamarawBulk":
 		return PaddingTamarawBulk
+	case "APE":
+		return PaddingApe
 	default:
 		return PaddingInvalid
 	}
@@ -420,6 +422,8 @@ func (c *commonConn) setPadding(method PaddingMethod, params []byte) error {
 		}
 	case PaddingTamaraw, PaddingTamarawBulk:
 		c.impl = newTamarawPadding(c, method, c.isClient)
+	case PaddingApe:
+		c.impl = newApePadding(c)
 	default:
 		return ErrInvalidPadding
 	}
@@ -557,7 +561,7 @@ func paddingOk(needle PaddingMethod, haystack []PaddingMethod) bool {
 // padding method that requires parameterization.
 func DefaultPaddingParams(method PaddingMethod) ([]byte, error) {
 	switch method {
-	case PaddingNull, PaddingTamaraw, PaddingTamarawBulk:
+	case PaddingNull, PaddingTamaraw, PaddingTamarawBulk, PaddingApe:
 		return nil, nil
 	case PaddingObfs4Burst, PaddingObfs4BurstIAT, PaddingObfs4PacketIAT:
 		return obfs4PaddingDefaultParams(method)
