@@ -182,7 +182,7 @@ type ConnStats struct {
 func (s *ConnStats) ToString() string {
 	rxGoodput := float64(s.RxPayloadBytes) / float64(s.RxBytes)
 	txGoodput := float64(s.TxPayloadBytes) / float64(s.TxBytes)
-	return fmt.Sprintf("Receive: Total: %v Overhead: %v Payload: %v Padding: %v Goodput: %v Trasmit: Total: %v Overhead: %v Payload: %v Padding: %v Goodput: %v", s.RxBytes, s.RxOverheadBytes, s.RxPayloadBytes, s.RxPaddingBytes, rxGoodput, s.TxBytes, s.TxOverheadBytes, s.TxPayloadBytes, s.TxPaddingBytes, txGoodput)
+	return fmt.Sprintf("Receive: Total: %v Overhead: %v Payload: %v Padding: %v Goodput: %v Transmit: Total: %v Overhead: %v Payload: %v Padding: %v Goodput: %v", s.RxBytes, s.RxOverheadBytes, s.RxPayloadBytes, s.RxPaddingBytes, rxGoodput, s.TxBytes, s.TxOverheadBytes, s.TxPayloadBytes, s.TxPaddingBytes, txGoodput)
 }
 
 type commonConn struct {
