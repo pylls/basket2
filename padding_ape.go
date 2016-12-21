@@ -81,9 +81,7 @@ func (p *apePadding) ap(data chan bool,
 			return
 
 		case <-data: // data sent/received
-			if state == stateWait || state == stateGap {
-				state = stateBurst // enter burst mode
-			}
+			state = stateBurst          // always burst mode
 			if timer, inf = hb(); inf { // sample burst histogram, back to waiting?
 				state = stateWait
 			}
@@ -92,14 +90,12 @@ func (p *apePadding) ap(data chan bool,
 			switch state {
 			case stateBurst: // transition to gap mode
 				state = stateGap
-				p.writeChan <- nil
-				if timer, inf = hg(); inf { // sample gap histogram, back to burst?
-					state = stateBurst
-				}
+				timer = time.After(0) // HACK: trigger stateGap case below
 			case stateGap: // send dummy, sample gap histogram
 				p.writeChan <- nil
 				if timer, inf = hg(); inf { // sample gap histogram, back to burst?
 					state = stateBurst
+					data <- true // HACK: trigger stateBurst
 				}
 			}
 		}
