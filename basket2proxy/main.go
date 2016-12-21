@@ -30,6 +30,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"git.torproject.org/pluggable-transports/goptlib.git"
 	"github.com/pylls/basket2"
@@ -88,23 +89,14 @@ func closeListeners(listeners []net.Listener) {
 func copyLoop(bConn, orConn net.Conn, addrStr string) {
 	errChan := make(chan error, 2)
 
+	time.AfterFunc(time.Second*120, func() { logStats(bConn, addrStr) })
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go copyFromTo(orConn, bConn, &wg, errChan)
 	go copyFromTo(bConn, orConn, &wg, errChan)
 	wg.Wait()
 
-	// Log per-connection stats.
-	var statsStr string
-	switch c := bConn.(type) {
-	case *basket2.ClientConn:
-		statsStr = c.Stats().ToString()
-	case *basket2.ServerConn:
-		statsStr = c.Stats().ToString()
-	}
-	if statsStr != "" {
-		log.Debugf("%s: %s", addrStr, statsStr)
-	}
+	logStats(bConn, addrStr)
 
 	var err error
 	if len(errChan) > 0 {
@@ -114,6 +106,22 @@ func copyLoop(bConn, orConn net.Conn, addrStr string) {
 		log.Warnf("%s: Closed connection: %v", addrStr, log.ElideError(err))
 	} else {
 		log.Infof("%s: Closed connection", addrStr)
+	}
+}
+
+// log per-connection stats
+func logStats(bConn net.Conn, addrStr string) {
+	var statsStr, pm string
+	switch c := bConn.(type) {
+	case *basket2.ClientConn:
+		statsStr = c.Stats().ToString()
+		pm = c.PaddingMethod().ToString()
+	case *basket2.ServerConn:
+		statsStr = c.Stats().ToString()
+		pm = c.PaddingMethod().ToString()
+	}
+	if statsStr != "" {
+		log.Debugf("%s: %s PaddingMethod: %s", addrStr, statsStr, pm)
 	}
 }
 
